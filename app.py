@@ -6,7 +6,7 @@ import calendar
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# Configuração de página corporativa de alta fidelidade
+# Configuração de página corporativa de alta fidelidade - Estilo Discord/Codespaces
 st.set_page_config(
     page_title="Mercado Pago CX - Leal Assessoria",
     page_icon="⚡",
@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Conexão Nativa com o Google Sheets
+# Estabelece a conexão nativa com o Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def inject_premium_dark_theme():
@@ -363,24 +363,48 @@ def main():
                         st.success("Criado!"); st.rerun()
                     else: st.error("Operador já cadastrado!")
 
-    # 6. CONTROL MANAGEMENT
+    # 6. CONTROL MANAGEMENT (MÓDULO CORRIGIDO CONTRA LOOPS)
     elif view_mode == "⚙️ Control Management":
         st.title("Control Management")
-        if not lista_ops: st.warning("Sem analistas.")
+        if not lista_ops: 
+            st.warning("Sem analistas cadastrados.")
         else:
             op_gerenciar = st.selectbox("Escolha a Conta:", [o["nome"] for o in lista_ops])
             meta_g = next(o for o in lista_ops if o["nome"] == op_gerenciar)
+            
             t_edit, t_danger = st.tabs(["📝 Editar", "🚨 Excluir"])
+            
             with t_edit:
+                # Componente 1: Correção do Nome
                 nn = st.text_input("Corrigir Nome:", value=meta_g["nome"])
-                try: da = datetime.strptime(meta_g["admissao"], "%d/%m/%Y").date()
-                except: da = datetime.now().date()
-                if st.button("Commit Alterações") and nn.strip():
-                    atualizar_perfil_operador(op_gerenciar, nn.strip(), st.date_input("Corrigir Admissão:", value=da))
-                    st.success("Atualizado!"); st.rerun()
+                
+                # Resgate seguro da data atual cadastrada
+                try: 
+                    da_inicial = datetime.strptime(meta_g["admissao"], "%d/%m/%Y").date()
+                except: 
+                    da_inicial = datetime.now().date()
+                
+                # Componente 2: Correção da Admissão (AGORA FORA DO BOTÃO - SEM LOOP!)
+                nova_data_adm = st.date_input("Corrigir Data de Admissão:", value=da_inicial)
+                
+                # Botão único para executar as alterações na planilha
+                if st.button("Commit Alterações"):
+                    if nn.strip():
+                        with st.spinner("Sincronizando com o Google Sheets..."):
+                            sucesso = atualizar_perfil_operador(op_gerenciar, nn.strip(), nova_data_adm)
+                            if sucesso:
+                                st.success("Cadastro atualizado com sucesso!")
+                                st.rerun()
+                            else:
+                                st.error("Erro interno ao atualizar os registros.")
+                    else:
+                        st.warning("O campo de Nome não pode ser deixado em branco.")
+                        
             with t_danger:
-                if st.checkbox("Confirmar exclusão irreversível") and st.button("Deletar do Sheets"):
-                    deletar_operador(op_gerenciar); st.success("Expurgado!"); st.rerun()
+                if st.checkbox("Confirmar exclusão irreversível profissional") and st.button("Deletar do Sheets"):
+                    deletar_operador(op_gerenciar)
+                    st.success("Expurgado com sucesso!")
+                    st.rerun()
 
 if __name__ == "__main__":
     main()
