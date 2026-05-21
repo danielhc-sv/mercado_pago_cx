@@ -6,7 +6,7 @@ import calendar
 from datetime import datetime
 from streamlit_gsheets import GSheetsConnection
 
-# Configuração de página corporativa de alta fidelidade - Estilo Discord/Codespaces
+# Configuração de página corporativa de alta fidelidade
 st.set_page_config(
     page_title="Mercado Pago CX - Leal Assessoria",
     page_icon="⚡",
@@ -20,7 +20,7 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def inject_premium_dark_theme():
     st.markdown("""
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Ginto:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
             
             html, body, [data-testid="stAppViewContainer"], [data-testid="stHeader"] {
                 font-family: 'Inter', sans-serif;
@@ -104,7 +104,6 @@ def inject_premium_dark_theme():
             .stTabs [data-baseweb="tab"] { color: #949ba4 !important; }
             .stTabs [aria-selected="true"] { color: #ffffff !important; font-weight: 700; }
 
-            /* Estilos para a tela bonita de Feedback 1v1 */
             .feedback-board {
                 background-color: #111214; border: 1px solid #2b2d31; border-radius: 12px; padding: 25px; margin-top: 15px;
             }
@@ -186,8 +185,8 @@ def salvar_perfil_operador(nome, squad, nivel, admissao):
 
 def atualizar_perfil_operador(nome_antigo, nome_novo, nova_admissao):
     df_ops = get_data("Operadores", ["Nome", "Squad", "Nivel", "Admissao"])
-    df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
-    df_feedbacks = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+    df_ciclos = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+    df_feedbacks = get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
     
     nome_a_clean = nome_antigo.strip()
     nome_n_clean = nome_novo.strip()
@@ -209,78 +208,175 @@ def atualizar_perfil_operador(nome_antigo, nome_novo, nova_admissao):
 def deletar_operador(nome):
     nome_clean = nome.strip()
     save_data("Operadores", get_data("Operadores", ["Nome", "Squad", "Nivel", "Admissao"])[lambda x: x["Nome"].astype(str).str.strip() != nome_clean])
-    save_data("Historico_Ciclos", get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
-    save_data("Feedbacks", get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
+    save_data("Historico_Ciclos", get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
+    save_data("Feedbacks", get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
 
 def main():
     inject_premium_dark_theme()
     lista_ops = listar_operadores()
     
+    lista_meses = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
+    
     with st.sidebar:
         st.markdown("<div style='padding: 10px 0;'><h2 style='margin:0; font-size:22px; color:#ffffff !important;'>Mercado Pago - CX</h2><p style='color:#949ba4 !important; font-size:14px; margin-top:2px;'>Leal Assessoria</p></div>", unsafe_allow_html=True)
+        st.divider()
+        
+        st.markdown("<span style='font-size:10px; font-weight:700; color:#949ba4; letter-spacing: 0.8px;'>MÊS DE REFERÊNCIA ATIVO</span>", unsafe_allow_html=True)
+        mes_ativo = st.selectbox("Mês de Trabalho:", lista_meses, index=datetime.now().month - 1)
+        
         st.divider()
         st.markdown("<span style='font-size:10px; font-weight:700; color:#949ba4; letter-spacing: 0.8px;'>MÓDULOS DE NAVEGAÇÃO</span>", unsafe_allow_html=True)
         view_mode = st.radio("Navegação:", ["📊 Overview", "👤 Profile Analytics", "📢 1v1 Feedback", "📥 Log Notes", "🤖 AI Studio", "➕ Add Operator", "⚙️ Control Management"], label_visibility="collapsed")
         st.divider()
-        st.markdown(f"<div style='color:#23a55a; font-size:12px; font-weight:600;'>● {len(lista_ops)} Operadores Conectados (Sheets)</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='color:#23a55a; font-size:12px; font-weight:600;'>● {len(lista_ops)} Operadores Conectados</div>", unsafe_allow_html=True)
 
     # 1. OVERVIEW
     if view_mode == "📊 Overview":
         st.title("Visão Geral da Célula")
-        st.markdown("Métricas consolidadas sincronizadas em tempo real via Cloud Database Google Sheets.")
         
-        df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
-        dados_ranking = []
+        df_ciclos = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
         
-        for op in lista_ops:
-            df_ind = df_ciclos[df_ciclos["Operador"].astype(str).str.strip() == op["nome"]]
-            mb, mi, mc, mnps = np.nan, np.nan, 0.0, np.nan
-            if not df_ind.empty:
+        # Criação das Sub-Abas do Overview para separar as visões pedidas
+        tab_mensal, tab_geral, tab_nps, tab_ciclo_mes = st.tabs([
+            f"🏆 Ranking de {mes_ativo}", 
+            "📋 Planilha Geral (Média Banco)", 
+            "🎯 Painel Geral de NPS", 
+            "📈 Médias por Ciclo e Mês"
+        ])
+        
+        # --- SUB-ABA 1: RANKING DO MÊS ATUAL ---
+        with tab_mensal:
+            st.markdown(f"### Desempenho Focado em `{mes_ativo}`")
+            dados_ranking = []
+            df_mes_filtrado = df_ciclos[df_ciclos["Mes"].astype(str).str.strip() == mes_ativo]
+            
+            for op in lista_ops:
+                df_ind = df_mes_filtrado[df_mes_filtrado["Operador"].astype(str).str.strip() == op["nome"]]
                 mb = pd.to_numeric(df_ind["Nota_Banco"], errors='coerce').mean()
                 mi = pd.to_numeric(df_ind["Nota_Interna"], errors='coerce').mean()
                 mnps = pd.to_numeric(df_ind["NPS"], errors='coerce').mean()
                 mc = np.nanmean([mb, mi]) if not (np.isnan(mb) and np.isnan(mi)) else 0.0
                 
-            dados_ranking.append({
-                "Operador": op["nome"], 
-                "Tempo de Casa": calcular_tempo_atividade(op.get("admissao", "19/05/2026")),
-                "Média Mercado Pago": f"{mb:.1f}" if not np.isnan(mb) else "S/D",
-                "Média Interna QA": f"{mi:.1f}" if not np.isnan(mi) else "S/D",
-                "Média NPS": f"{mnps:.1f}" if not np.isnan(mnps) else "S/D",
-                "Consolidado Geral": mc
-            })
+                dados_ranking.append({
+                    "Operador": op["nome"], 
+                    "Tempo de Casa": calcular_tempo_atividade(op.get("admissao", "19/05/2026")),
+                    "Média Mercado Pago": f"{mb:.1f}" if not np.isnan(mb) else "S/D",
+                    "Média Interna QA": f"{mi:.1f}" if not np.isnan(mi) else "S/D",
+                    "Média NPS": f"{mnps:.1f}" if not np.isnan(mnps) else "S/D",
+                    "Consolidado Geral": mc
+                })
+                
+            if df_mes_filtrado.empty:
+                st.info(f"Nenhum registro de monitoria encontrado para o mês de {mes_ativo} ainda.")
+            else:
+                df_master = pd.DataFrame(dados_ranking).sort_values(by="Consolidado Geral", ascending=False).reset_index(drop=True)
+                df_master.insert(0, 'Rank', df_master.index + 1)
+                
+                cols = st.columns(3)
+                for idx, row in df_master.head(6).iterrows():
+                    if row["Consolidado Geral"] > 0:
+                        with cols[idx % 3]:
+                            st.markdown(f"<div class='cx-metric-card' style='border-top: 3px solid #5865f2;'><div style='display:flex; justify-content:space-between;'><span class='cx-label'>#{row['Rank']} NO RANKING</span><span style='color:#23a55a; font-size:11px; font-weight:700;'>{row['Tempo de Casa']}</span></div><div class='cx-value' style='font-size:18px;'>{row['Operador']}</div><div style='margin-top:10px; font-size:12px; display:flex; justify-content:space-between; color:#b5bac1;'><span>Score MP: <b>{row['Média Mercado Pago']}</b></span><span>QA: <b>{row['Média Interna QA']}</b></span><span>NPS: <b>{row['Média NPS']}</b></span></div></div>", unsafe_allow_html=True)
+                
+                st.divider()
+                df_master["Consolidado Geral"] = df_master["Consolidado Geral"].map(lambda x: f"{x:.1f}" if x > 0 else "0.0")
+                df_centralizado = df_master.style.set_properties(**{'text-align': 'center'}).set_table_styles([
+                    {'selector': 'th', 'props': [('text-align', 'center')]}
+                ])
+                st.dataframe(df_centralizado, use_container_width=True, hide_index=True)
+
+        # --- SUB-ABA 2: PLANILHA GERAL (HISTÓRICO DE NOTA DO BANCO) ---
+        with tab_geral:
+            st.markdown("### Planilha Consolidada Histórica — Média Mercado Pago")
+            st.markdown("Visão matricial completa de todos os operadores ao longo de todos os meses já avaliados.")
             
-        if not dados_ranking:
-            st.info("Nenhum operador registrado no sistema ou planilha vazia.")
-        else:
-            df_master = pd.DataFrame(dados_ranking).sort_values(by="Consolidado Geral", ascending=False).reset_index(drop=True)
-            df_master.insert(0, 'Rank', df_master.index + 1)
+            if df_ciclos.empty:
+                st.info("Nenhum dado histórico registrado.")
+            else:
+                df_ciclos["Nota_Banco"] = pd.to_numeric(df_ciclos["Nota_Banco"], errors="coerce")
+                # Pivota os dados para colocar os meses nas colunas e os operadores nas linhas
+                df_pivot_banco = df_ciclos.pivot_table(
+                    index="Operador", 
+                    columns="Mes", 
+                    values="Nota_Banco", 
+                    aggfunc="mean"
+                ).reindex(columns=lista_meses)
+                
+                df_pivot_banco = df_pivot_banco.dropna(how='all')
+                df_pivot_banco["Média Geral Histórica"] = df_pivot_banco.mean(axis=1)
+                df_pivot_banco = df_pivot_banco.reset_index()
+                
+                # Formatação para 1 casa decimal
+                for col in df_pivot_banco.columns:
+                    if col != "Operador":
+                        df_pivot_banco[col] = df_pivot_banco[col].map(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+                
+                df_c_geral = df_pivot_banco.style.set_properties(**{'text-align': 'center'}).set_table_styles([
+                    {'selector': 'th', 'props': [('text-align', 'center')]}
+                ])
+                st.dataframe(df_c_geral, use_container_width=True, hide_index=True)
+
+        # --- SUB-ABA 3: PAINEL DE NPS ---
+        with tab_nps:
+            st.markdown("### Histórico Matricial de Satisfação (NPS)")
             
-            st.markdown("### Painel de Liderança de Performance")
-            cols = st.columns(3)
-            for idx, row in df_master.head(6).iterrows():
-                with cols[idx % 3]:
-                    st.markdown(f"<div class='cx-metric-card' style='border-top: 3px solid #5865f2;'><div style='display:flex; justify-content:space-between;'><span class='cx-label'>#{row['Rank']} NO RANKING</span><span style='color:#23a55a; font-size:11px; font-weight:700;'>{row['Tempo de Casa']}</span></div><div class='cx-value' style='font-size:18px;'>{row['Operador']}</div><div style='margin-top:10px; font-size:12px; display:flex; justify-content:space-between; color:#b5bac1;'><span>Score MP: <b>{row['Média Mercado Pago']}</b></span><span>QA Leal: <b>{row['Média Interna QA']}</b></span><span>NPS: <b>{row['Média NPS']}</b></span></div></div>", unsafe_allow_html=True)
-            
-            st.divider()
-            
-            # Formatação segura para remover dízimas (.000000) e centralizar tudo perfeitamente
-            df_master["Consolidado Geral"] = df_master["Consolidado Geral"].map(lambda x: f"{x:.1f}" if x > 0 else "0.0")
-            df_centralizado = df_master.style.set_properties(**{'text-align': 'center'}).set_table_styles([
-                {'selector': 'th', 'props': [('text-align', 'center')]}
-            ])
-            st.dataframe(df_centralizado, use_container_width=True, hide_index=True)
+            if df_ciclos.empty:
+                st.info("Nenhum dado de NPS localizado.")
+            else:
+                df_ciclos["NPS"] = pd.to_numeric(df_ciclos["NPS"], errors="coerce")
+                df_pivot_nps = df_ciclos.pivot_table(
+                    index="Operador", 
+                    columns="Mes", 
+                    values="NPS", 
+                    aggfunc="mean"
+                ).reindex(columns=lista_meses)
+                
+                df_pivot_nps = df_pivot_nps.dropna(how='all')
+                df_pivot_nps["NPS Consolidado"] = df_pivot_nps.mean(axis=1)
+                df_pivot_nps = df_pivot_nps.reset_index()
+                
+                for col in df_pivot_nps.columns:
+                    if col != "Operador":
+                        df_pivot_nps[col] = df_pivot_nps[col].map(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+                        
+                df_c_nps = df_pivot_nps.style.set_properties(**{'text-align': 'center'}).set_table_styles([
+                    {'selector': 'th', 'props': [('text-align', 'center')]}
+                ])
+                st.dataframe(df_c_nps, use_container_width=True, hide_index=True)
+
+        # --- SUB-ABA 4: MÉDIAS POR CICLO E MÊS ---
+        with tab_ciclo_mes:
+            st.markdown("### Visão Gerencial Agrupada")
+            if df_ciclos.empty:
+                st.info("Sem dados suficientes.")
+            else:
+                df_ciclos["Nota_Banco"] = pd.to_numeric(df_ciclos["Nota_Banco"], errors="coerce")
+                df_ciclos["Nota_Interna"] = pd.to_numeric(df_ciclos["Nota_Interna"], errors="coerce")
+                df_ciclos["NPS"] = pd.to_numeric(df_ciclos["NPS"], errors="coerce")
+                
+                g_mes = df_ciclos.groupby("Mes")[["Nota_Banco", "Nota_Interna", "NPS"]].mean().reindex(lista_meses).dropna(how='all').reset_index()
+                g_ciclo = df_ciclos.groupby("Ciclo")[["Nota_Banco", "Nota_Interna", "NPS"]].mean().reset_index()
+                
+                col_m, col_c = st.columns(2)
+                with col_m:
+                    st.write("**📊 Médias Gerais Agrupadas por Mês:**")
+                    for c in ["Nota_Banco", "Nota_Interna", "NPS"]: g_mes[c] = g_mes[c].map(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+                    st.dataframe(g_mes.style.set_properties(**{'text-align': 'center'}), use_container_width=True, hide_index=True)
+                with col_c:
+                    st.write("**🎯 Médias Gerais Agrupadas por Ciclo:**")
+                    for c in ["Nota_Banco", "Nota_Interna", "NPS"]: g_ciclo[c] = g_ciclo[c].map(lambda x: f"{x:.1f}" if pd.notna(x) else "—")
+                    st.dataframe(g_ciclo.style.set_properties(**{'text-align': 'center'}), use_container_width=True, hide_index=True)
 
     # 2. PROFILE ANALYTICS
     elif view_mode == "👤 Profile Analytics":
-        st.title("Profile Quality Audit")
+        st.title(f"Profile Quality Audit — Foco Histórico Geral")
         if not lista_ops: st.warning("Nenhum operador cadastrado.")
         else:
             op_escolhido = st.selectbox("Inspecionar Perfil do Analista:", [o["nome"] for o in lista_ops])
             meta_op = next(o for o in lista_ops if o["nome"] == op_escolhido)
             
-            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
-            df_feed_ind = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
+            df_ind = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
+            df_feed_ind = get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
             
             if not df_ind.empty:
                 for c in ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"]: df_ind[c] = pd.to_numeric(df_ind[c], errors="coerce")
@@ -302,18 +398,15 @@ def main():
             txt_nps = f"{med_nps:.1f}" if not np.isnan(med_nps) and len(df_ind) > 0 else "S/D"
             
             c1, c2, c3, c4 = st.columns(4)
-            with c1: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Mercado Pago</span><div class='cx-value'>{txt_banco}</div></div>", unsafe_allow_html=True)
+            with c1: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Histórica MP</span><div class='cx-value'>{txt_banco}</div></div>", unsafe_allow_html=True)
             with c2: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Auditoria Leal</span><div class='cx-value'>{txt_interna}</div></div>", unsafe_allow_html=True)
-            with c3: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média NPS</span><div class='cx-value'>{txt_nps}</div></div>", unsafe_allow_html=True)
-            with c4: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Monitorias Coletadas</span><div class='cx-value'>{len(df_ind)} Ciclos</div></div>", unsafe_allow_html=True)
-            
-            st.markdown("#### Histórico de Evolução de Notas")
-            st.line_chart(df_ind.set_index("Ciclo")[["Nota_Banco", "Nota_Interna", "NPS"]].dropna(how='all'), color=["#009ee3", "#5865f2", "#23a55a"])
+            with c3: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Histórica NPS</span><div class='cx-value'>{txt_nps}</div></div>", unsafe_allow_html=True)
+            with c4: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Volume Amostral</span><div class='cx-value'>{len(df_ind)} Ciclos</div></div>", unsafe_allow_html=True)
 
-    # 3. 1V1 FEEDBACK SESSION (NOVA ABA COMPLETA E CUSTOMIZÁVEL)
+    # 3. 1V1 FEEDBACK SESSION
     elif view_mode == "📢 1v1 Feedback":
         st.title("📢 Painel de Apresentação Feedback 1v1")
-        st.markdown("Use esta aba para apresentar as avaliações diretamente ao operador. Escolha exatamente o que quer mostrar na tela.")
+        st.markdown(f"Exibição customizada baseada no mês ativo selecionado: **{mes_ativo}**")
         
         if not lista_ops: 
             st.warning("Nenhum operador cadastrado.")
@@ -334,21 +427,19 @@ def main():
                 show_pdi = st.checkbox("Plano de Ação Corretivo (PDI)", value=True)
                 
             with cc2:
-                st.markdown(f"### 📄 Quadro de Performance de {op_feedback} — `{ciclo_feedback}`")
+                st.markdown(f"### 📄 Quadro de Performance de {op_feedback} — `{mes_ativo}` / `{ciclo_feedback}`")
                 
-                # Resgate dos dados das duas tabelas
-                df_c = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
-                df_f = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+                df_c = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+                df_f = get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
                 
-                row_c = df_c[(df_c["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip())]
-                row_f = df_f[(df_f["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip())]
+                row_c = df_c[(df_c["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip()) & (df_c["Mes"].astype(str).str.strip() == mes_ativo)]
+                row_f = df_f[(df_f["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip()) & (df_f["Mes"].astype(str).str.strip() == mes_ativo)]
                 
                 if row_c.empty:
-                    st.info("Nenhum dado de monitoria foi localizado para este ciclo específico.")
+                    st.info(f"Nenhum dado de monitoria localizado para este operador no {ciclo_feedback} de {mes_ativo}.")
                 else:
                     st.markdown("<div class='feedback-board'>", unsafe_allow_html=True)
                     
-                    # Seção de Métricas Principais
                     num_cols = sum([show_mp, show_leal, show_nps])
                     if num_cols > 0:
                         m_cols = st.columns(num_cols)
@@ -365,7 +456,6 @@ def main():
                             val = row_c.iloc[0]["NPS"]
                             m_cols[idx_col].markdown(f"<div class='cx-metric-card' style='border-top:3px solid #23a55a'><span class='cx-label'>Score NPS</span><div class='cx-value'>{val if pd.notna(val) else 'S/D'}</div></div>", unsafe_allow_html=True)
                     
-                    # Seção de Pilares Técnicos
                     if show_pilares:
                         st.markdown("<br>", unsafe_allow_html=True)
                         st.markdown("#### 🎯 Alinhamento de Pilares Operacionais")
@@ -374,7 +464,6 @@ def main():
                         pc2.metric("Soft Skills e Empatia", f"{row_c.iloc[0]['Soft_Skills'] or 0}%")
                         pc3.metric("Resolutividade (FCR)", f"{row_c.iloc[0]['FCR'] or 0}%")
                         
-                    # Seção de Textos de Diagnóstico/PDI
                     if show_gaps:
                         gap_text = row_f.iloc[0]["Gaps"] if not row_f.empty else "Não documentado."
                         st.markdown(f"<div class='feedback-card-glow'><div class='feedback-title'>🔍 Diagnóstico e Gaps Identificados</div><div class='feedback-text'>{gap_text}</div></div>", unsafe_allow_html=True)
@@ -385,10 +474,10 @@ def main():
                         
                     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 4. LOG NOTES (ALTERAÇÃO: NUM_INPUT PARA EDIÇÃO COMPLETA A QUALQUER MOMENTO)
+    # 4. LOG NOTES (FILTRADO HISTORICAMENTE POR MÊS ATIVO)
     elif view_mode == "📥 Log Notes":
-        st.title("Central de Auditoria de Monitoria (QA)")
-        st.markdown("Insira ou edite as notas do operador para o ciclo selecionado. Se o ciclo já possuir notas, elas serão substituídas automaticamente.")
+        st.title(f"Central de Auditoria de Monitoria (QA) — Lançando em `{mes_ativo}`")
+        st.markdown(f"As notas salvas abaixo serão vinculadas permanentemente ao mês de **{mes_ativo}**. Altere o mês na barra lateral se quiser lançar ou editar outro período.")
         if not lista_ops: st.warning("Cadastre profissionais antes de realizar auditorias.")
         else:
             with st.container(border=True):
@@ -397,9 +486,8 @@ def main():
                     op_alvo = st.selectbox("Escolha o Operador:", [o["nome"] for o in lista_ops])
                     ciclo_alvo = st.selectbox("Ciclo Avaliado:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
                     
-                    # Puxar dados pré-existentes se houver para facilitar re-edição fluida
-                    df_c_atual = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
-                    match_existente = df_c_atual[(df_c_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())]
+                    df_c_atual = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+                    match_existente = df_c_atual[(df_c_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip()) & (df_c_atual["Mes"].astype(str).str.strip() == mes_ativo)]
                     
                     val_init_mp = float(match_existente.iloc[0]["Nota_Banco"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Nota_Banco"]) else 85.0
                     val_init_leal = float(match_existente.iloc[0]["Nota_Interna"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Nota_Interna"]) else 85.0
@@ -418,31 +506,33 @@ def main():
                     v_soft = st.number_input("Soft Skills e Cordialidade:", 0, 100, val_init_soft, step=1)
                     v_fcr = st.number_input("Resolutividade (FCR):", 0, 100, val_init_fcr, step=1)
                 
-                df_f_atual = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
-                match_f_existente = df_f_atual[(df_f_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())]
+                df_f_atual = get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+                match_f_existente = df_f_atual[(df_f_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip()) & (df_f_atual["Mes"].astype(str).str.strip() == mes_ativo)]
                 val_init_gaps = str(match_f_existente.iloc[0]["Gaps"]) if not match_f_existente.empty else ""
                 val_init_pdi = str(match_f_existente.iloc[0]["PDI"]) if not match_f_existente.empty else ""
                 
                 diag = st.text_area("Diagnóstico Técnico de Gaps:", value=val_init_gaps)
                 pdi = st.text_area("Plano de Ação Corretivo (PDI):", value=val_init_pdi)
                 
-                if st.button("🚀 Gravar / Atualizar Auditoria no Google Sheets"):
-                    df_c = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
-                    match = (df_c["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())
+                if st.button("🚀 Gravar / Atualizar Auditoria Completa"):
+                    df_c = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+                    match = (df_c["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip()) & (df_c["Mes"].astype(str).str.strip() == mes_ativo)
+                    
                     if match.any():
                         df_c.loc[df_c[match].index, ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"]] = [nota_mp, nota_leal, v_comp, v_soft, v_fcr, nota_nps]
                     else:
-                        df_c = pd.concat([df_c, pd.DataFrame([{"Ciclo": ciclo_alvo, "Operador": op_alvo.strip(), "Nota_Banco": nota_mp, "Nota_Interna": nota_leal, "Compliance": v_comp, "Soft_Skills": v_soft, "FCR": v_fcr, "NPS": nota_nps}])], ignore_index=True)
+                        df_c = pd.concat([df_c, pd.DataFrame([{"Mes": mes_ativo, "Ciclo": ciclo_alvo, "Operador": op_alvo.strip(), "Nota_Banco": nota_mp, "Nota_Interna": nota_leal, "Compliance": v_comp, "Soft_Skills": v_soft, "FCR": v_fcr, "NPS": nota_nps}])], ignore_index=True)
                     save_data("Historico_Ciclos", df_c)
                     
-                    df_f = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
-                    match_f = (df_f["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())
+                    df_f = get_data("Feedbacks", ["Mes", "Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+                    match_f = (df_f["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip()) & (df_f["Mes"].astype(str).str.strip() == mes_ativo)
+                    
                     if match_f.any():
                         df_f.loc[df_f[match_f].index, ["Data_Hora", "Metricas", "Gaps", "PDI"]] = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"MP: {nota_mp} | Leal: {nota_leal} | NPS: {nota_nps}", diag if diag else 'Nenhum', pdi if pdi else 'Preventivo']
                     else:
-                        df_f = pd.concat([df_f, pd.DataFrame([{"Data_Hora": datetime.now().strftime('%d/%m/%Y %H:%M'), "Operador": op_alvo.strip(), "Ciclo": ciclo_alvo, "Metricas": f"MP: {nota_mp} | Leal: {nota_leal} | NPS: {nota_nps}", "Gaps": diag if diag else 'Nenhum', "PDI": pdi if pdi else 'Preventivo'}])], ignore_index=True)
+                        df_f = pd.concat([df_f, pd.DataFrame([{"Mes": mes_ativo, "Data_Hora": datetime.now().strftime('%d/%m/%Y %H:%M'), "Operador": op_alvo.strip(), "Ciclo": ciclo_alvo, "Metricas": f"MP: {nota_mp} | Leal: {nota_leal} | NPS: {nota_nps}", "Gaps": diag if diag else 'Nenhum', "PDI": pdi if pdi else 'Preventivo'}])], ignore_index=True)
                     save_data("Feedbacks", df_f)
-                    st.success("Dados salvos e sincronizados perfeitamente!")
+                    st.success(f"Dados salvos com sucesso e alocados para o mês de {mes_ativo}!")
                     st.rerun()
 
     # 5. AI STUDIO
@@ -458,7 +548,7 @@ def main():
             mod_sel = st.selectbox("Template Estrutural:", list(templates.keys()))
             obs_lider = st.text_area("Observações Avançadas:")
             
-            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_ai.strip()]
+            df_ind = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_ai.strip()]
             mb = pd.to_numeric(df_ind["Nota_Banco"], errors="coerce").mean() if not df_ind.empty else 0.0
             mi = pd.to_numeric(df_ind["Nota_Interna"], errors="coerce").mean() if not df_ind.empty else 0.0
             
@@ -490,25 +580,17 @@ def main():
             
             with t_edit:
                 nn = st.text_input("Corrigir Nome:", value=meta_g["nome"])
-                
-                try: 
-                    da_inicial = datetime.strptime(meta_g["admissao"], "%d/%m/%Y").date()
-                except: 
-                    da_inicial = datetime.now().date()
-                
+                try: da_inicial = datetime.strptime(meta_g["admissao"], "%d/%m/%Y").date()
+                except: da_inicial = datetime.now().date()
                 nova_data_adm = st.date_input("Corrigir Data de Admissão:", value=da_inicial)
                 
                 if st.button("Commit Alterações"):
                     if nn.strip():
                         with st.spinner("Sincronizando com o Google Sheets..."):
                             sucesso = atualizar_perfil_operador(op_gerenciar, nn.strip(), nova_data_adm)
-                            if sucesso:
-                                st.success("Cadastro atualizado com sucesso!")
-                                st.rerun()
-                            else:
-                                st.error("Erro interno ao atualizar os registros.")
-                    else:
-                        st.warning("O campo de Nome não pode ser deixado em branco.")
+                            if sucesso: st.success("Cadastro atualizado!"); st.rerun()
+                            else: st.error("Erro interno.")
+                    else: st.warning("O campo de Nome não pode ser vazio.")
                         
             with t_danger:
                 if st.checkbox("Confirmar exclusão irreversível profissional") and st.button("Deletar do Sheets"):
