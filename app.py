@@ -103,6 +103,16 @@ def inject_premium_dark_theme():
             .stTabs [data-baseweb="tab-list"] { background-color: #111214; padding: 4px; border-radius: 6px; }
             .stTabs [data-baseweb="tab"] { color: #949ba4 !important; }
             .stTabs [aria-selected="true"] { color: #ffffff !important; font-weight: 700; }
+
+            /* Estilos para a tela bonita de Feedback 1v1 */
+            .feedback-board {
+                background-color: #111214; border: 1px solid #2b2d31; border-radius: 12px; padding: 25px; margin-top: 15px;
+            }
+            .feedback-card-glow {
+                background: #2b2d31; border-left: 5px solid #5865f2; border-radius: 6px; padding: 15px; margin-bottom: 15px;
+            }
+            .feedback-title { font-size: 14px; font-weight: 700; color: #f2f3f5; text-transform: uppercase; margin-bottom: 5px;}
+            .feedback-text { font-size: 15px; color: #dbdee1; line-height: 1.5; }
         </style>
     """, unsafe_allow_html=True)
 
@@ -176,7 +186,7 @@ def salvar_perfil_operador(nome, squad, nivel, admissao):
 
 def atualizar_perfil_operador(nome_antigo, nome_novo, nova_admissao):
     df_ops = get_data("Operadores", ["Nome", "Squad", "Nivel", "Admissao"])
-    df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])
+    df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
     df_feedbacks = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
     
     nome_a_clean = nome_antigo.strip()
@@ -199,7 +209,7 @@ def atualizar_perfil_operador(nome_antigo, nome_novo, nova_admissao):
 def deletar_operador(nome):
     nome_clean = nome.strip()
     save_data("Operadores", get_data("Operadores", ["Nome", "Squad", "Nivel", "Admissao"])[lambda x: x["Nome"].astype(str).str.strip() != nome_clean])
-    save_data("Historico_Ciclos", get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
+    save_data("Historico_Ciclos", get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
     save_data("Feedbacks", get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() != nome_clean])
 
 def main():
@@ -210,7 +220,7 @@ def main():
         st.markdown("<div style='padding: 10px 0;'><h2 style='margin:0; font-size:22px; color:#ffffff !important;'>Mercado Pago - CX</h2><p style='color:#949ba4 !important; font-size:14px; margin-top:2px;'>Leal Assessoria</p></div>", unsafe_allow_html=True)
         st.divider()
         st.markdown("<span style='font-size:10px; font-weight:700; color:#949ba4; letter-spacing: 0.8px;'>MÓDULOS DE NAVEGAÇÃO</span>", unsafe_allow_html=True)
-        view_mode = st.radio("Navegação:", ["📊 Overview", "👤 Profile Analytics", "📥 Log Notes", "🤖 AI Studio", "➕ Add Operator", "⚙️ Control Management"], label_visibility="collapsed")
+        view_mode = st.radio("Navegação:", ["📊 Overview", "👤 Profile Analytics", "📢 1v1 Feedback", "📥 Log Notes", "🤖 AI Studio", "➕ Add Operator", "⚙️ Control Management"], label_visibility="collapsed")
         st.divider()
         st.markdown(f"<div style='color:#23a55a; font-size:12px; font-weight:600;'>● {len(lista_ops)} Operadores Conectados (Sheets)</div>", unsafe_allow_html=True)
 
@@ -219,22 +229,25 @@ def main():
         st.title("Visão Geral da Célula")
         st.markdown("Métricas consolidadas sincronizadas em tempo real via Cloud Database Google Sheets.")
         
-        df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])
+        df_ciclos = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
         dados_ranking = []
         
         for op in lista_ops:
             df_ind = df_ciclos[df_ciclos["Operador"].astype(str).str.strip() == op["nome"]]
-            mb, mi, mc = np.nan, np.nan, 0.0
+            mb, mi, mc, mnps = np.nan, np.nan, 0.0, np.nan
             if not df_ind.empty:
                 mb = pd.to_numeric(df_ind["Nota_Banco"], errors='coerce').mean()
                 mi = pd.to_numeric(df_ind["Nota_Interna"], errors='coerce').mean()
+                mnps = pd.to_numeric(df_ind["NPS"], errors='coerce').mean()
                 mc = np.nanmean([mb, mi]) if not (np.isnan(mb) and np.isnan(mi)) else 0.0
                 
             dados_ranking.append({
-                "Operador": op["nome"], "Tempo de Casa": calcular_tempo_atividade(op.get("admissao", "19/05/2026")),
-                "Média Mercado Pago": round(mb, 1) if not np.isnan(mb) else "S/D",
-                "Média Interna QA": round(mi, 1) if not np.isnan(mi) else "S/D",
-                "Consolidado Geral": round(mc, 1) if mc > 0 else 0.0
+                "Operador": op["nome"], 
+                "Tempo de Casa": calcular_tempo_atividade(op.get("admissao", "19/05/2026")),
+                "Média Mercado Pago": f"{mb:.1f}" if not np.isnan(mb) else "S/D",
+                "Média Interna QA": f"{mi:.1f}" if not np.isnan(mi) else "S/D",
+                "Média NPS": f"{mnps:.1f}" if not np.isnan(mnps) else "S/D",
+                "Consolidado Geral": mc
             })
             
         if not dados_ranking:
@@ -247,11 +260,12 @@ def main():
             cols = st.columns(3)
             for idx, row in df_master.head(6).iterrows():
                 with cols[idx % 3]:
-                    st.markdown(f"<div class='cx-metric-card' style='border-top: 3px solid #5865f2;'><div style='display:flex; justify-content:space-between;'><span class='cx-label'>#{row['Rank']} NO RANKING</span><span style='color:#23a55a; font-size:11px; font-weight:700;'>{row['Tempo de Casa']}</span></div><div class='cx-value' style='font-size:18px;'>{row['Operador']}</div><div style='margin-top:10px; font-size:12px; display:flex; justify-content:space-between; color:#b5bac1;'><span>Score MP: <b>{row['Média Mercado Pago']}</b></span><span>Score QA Leal: <b>{row['Média Interna QA']}</b></span></div></div>", unsafe_allow_html=True)
+                    st.markdown(f"<div class='cx-metric-card' style='border-top: 3px solid #5865f2;'><div style='display:flex; justify-content:space-between;'><span class='cx-label'>#{row['Rank']} NO RANKING</span><span style='color:#23a55a; font-size:11px; font-weight:700;'>{row['Tempo de Casa']}</span></div><div class='cx-value' style='font-size:18px;'>{row['Operador']}</div><div style='margin-top:10px; font-size:12px; display:flex; justify-content:space-between; color:#b5bac1;'><span>Score MP: <b>{row['Média Mercado Pago']}</b></span><span>QA Leal: <b>{row['Média Interna QA']}</b></span><span>NPS: <b>{row['Média NPS']}</b></span></div></div>", unsafe_allow_html=True)
             
             st.divider()
             
-            # ATUALIZAÇÃO: Estilização para centralizar dados e cabeçalhos da planilha gerada
+            # Formatação segura para remover dízimas (.000000) e centralizar tudo perfeitamente
+            df_master["Consolidado Geral"] = df_master["Consolidado Geral"].map(lambda x: f"{x:.1f}" if x > 0 else "0.0")
             df_centralizado = df_master.style.set_properties(**{'text-align': 'center'}).set_table_styles([
                 {'selector': 'th', 'props': [('text-align', 'center')]}
             ])
@@ -265,14 +279,15 @@ def main():
             op_escolhido = st.selectbox("Inspecionar Perfil do Analista:", [o["nome"] for o in lista_ops])
             meta_op = next(o for o in lista_ops if o["nome"] == op_escolhido)
             
-            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
+            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
             df_feed_ind = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])[lambda x: x["Operador"].astype(str).str.strip() == op_escolhido].copy()
             
             if not df_ind.empty:
-                for c in ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"]: df_ind[c] = pd.to_numeric(df_ind[c], errors="coerce")
+                for c in ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"]: df_ind[c] = pd.to_numeric(df_ind[c], errors="coerce")
             
             med_banco = df_ind["Nota_Banco"].mean() if not df_ind.empty else 0
             med_interna = df_ind["Nota_Interna"].mean() if not df_ind.empty else 0
+            med_nps = df_ind["NPS"].mean() if not df_ind.empty else 0
             tempo_casa = calcular_tempo_atividade(meta_op.get("admissao", "19/05/2026"))
             
             badges = f"<span class='discord-badge discord-badge-blue'>Leal Staff</span>"
@@ -282,65 +297,155 @@ def main():
             iniciais = "".join([p[0] for p in op_escolhido.split()[:2]]).upper()
             st.markdown(f"<div class='discord-profile'><div class='discord-banner'></div><div class='discord-avatar-area'><div class='discord-avatar'>{iniciais}<div class='discord-status-online'></div></div><div class='discord-badge-container'>{badges}</div></div><div class='discord-body'><h2 style='margin:0; font-size:24px; color:#ffffff;'>{meta_op['nome']}</h2><p style='margin:2px 0 10px 0; color:#b5bac1; font-size:14px;'>@operador_cx_leal</p><hr style='border-color:#2b2d31 !important;'><div style='display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-top:15px;'><div><span class='cx-label'>SQUAD ALOCADA</span><div style='color:#dbdee1; font-size:14px; font-weight:600;'>{meta_op['squad']}</div></div><div><span class='cx-label'>PARCEIRO</span><div style='color:#009ee3; font-size:14px; font-weight:600;'>Leal ➔ Mercado Pago</div></div><div><span class='cx-label'>TEMPO DE ATIVIDADE</span><div style='color:#23a55a; font-size:14px; font-weight:600;'>{tempo_casa}</div></div></div></div></div>", unsafe_allow_html=True)
             
-            # ATUALIZAÇÃO: Tratamento seguro de strings e floats para evitar o ValueError
             txt_banco = f"{med_banco:.1f}" if med_banco > 0 else "S/D"
             txt_interna = f"{med_interna:.1f}" if med_interna > 0 else "S/D"
+            txt_nps = f"{med_nps:.1f}" if not np.isnan(med_nps) and len(df_ind) > 0 else "S/D"
             
-            c1, c2, c3 = st.columns(3)
+            c1, c2, c3, c4 = st.columns(4)
             with c1: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Mercado Pago</span><div class='cx-value'>{txt_banco}</div></div>", unsafe_allow_html=True)
             with c2: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Auditoria Leal</span><div class='cx-value'>{txt_interna}</div></div>", unsafe_allow_html=True)
-            with c3: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Monitorias Coletadas</span><div class='cx-value'>{len(df_ind)} Ciclos</div></div>", unsafe_allow_html=True)
+            with c3: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média NPS</span><div class='cx-value'>{txt_nps}</div></div>", unsafe_allow_html=True)
+            with c4: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Monitorias Coletadas</span><div class='cx-value'>{len(df_ind)} Ciclos</div></div>", unsafe_allow_html=True)
             
-            if not df_ind.empty and "Compliance" in df_ind.columns:
-                st.markdown("#### Matriz de Competências de CX")
-                cc1, cc2, cc3 = st.columns(3)
-                with cc1: st.slider("Script & Compliance Legal", 0, 100, int(df_ind["Compliance"].fillna(80).mean()), disabled=True)
-                with cc2: st.slider("Soft Skills & Empatia", 0, 100, int(df_ind["Soft_Skills"].fillna(80).mean()), disabled=True)
-                with cc3: st.slider("Resolutividade (FCR)", 0, 100, int(df_ind["FCR"].fillna(80).mean()), disabled=True)
-                st.line_chart(df_ind.set_index("Ciclo")[["Nota_Banco", "Nota_Interna"]], color=["#009ee3", "#5865f2"])
-            
-            st.markdown("#### 📝 Prontuário Clínico de Monitoria")
-            if not df_feed_ind.empty:
-                txt = "".join([f"[{r['Data_Hora']}] {r['Ciclo']}\nMétricas: {r['Metricas']}\nGaps: {r['Gaps']}\nPDI: {r['PDI']}\n{'-'*60}\n\n" for _, r in df_feed_ind.iterrows()])
-                st.text_area("Histórico Completo:", value=txt, height=200, disabled=True)
-            else: st.text_area("Histórico Completo:", "Nenhum feedback registrado.", height=70, disabled=True)
+            st.markdown("#### Histórico de Evolução de Notas")
+            st.line_chart(df_ind.set_index("Ciclo")[["Nota_Banco", "Nota_Interna", "NPS"]].dropna(how='all'), color=["#009ee3", "#5865f2", "#23a55a"])
 
-    # 3. LOG NOTES
+    # 3. 1V1 FEEDBACK SESSION (NOVA ABA COMPLETA E CUSTOMIZÁVEL)
+    elif view_mode == "📢 1v1 Feedback":
+        st.title("📢 Painel de Apresentação Feedback 1v1")
+        st.markdown("Use esta aba para apresentar as avaliações diretamente ao operador. Escolha exatamente o que quer mostrar na tela.")
+        
+        if not lista_ops: 
+            st.warning("Nenhum operador cadastrado.")
+        else:
+            cc1, cc2 = st.columns([1, 3])
+            with cc1:
+                st.markdown("### ⚙️ Filtros de Exibição")
+                op_feedback = st.selectbox("Selecione o Operador:", [o["nome"] for o in lista_ops])
+                ciclo_feedback = st.selectbox("Selecione o Ciclo:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
+                
+                st.divider()
+                st.write("**Marque o que deseja exibir:**")
+                show_mp = st.checkbox("Nota Mercado Pago", value=True)
+                show_leal = st.checkbox("Nota Interna Leal", value=True)
+                show_nps = st.checkbox("Métrica de NPS", value=True)
+                show_pilares = st.checkbox("Pilares (Compliance, Soft Skills, FCR)", value=False)
+                show_gaps = st.checkbox("Diagnóstico de Gaps", value=True)
+                show_pdi = st.checkbox("Plano de Ação Corretivo (PDI)", value=True)
+                
+            with cc2:
+                st.markdown(f"### 📄 Quadro de Performance de {op_feedback} — `{ciclo_feedback}`")
+                
+                # Resgate dos dados das duas tabelas
+                df_c = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+                df_f = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+                
+                row_c = df_c[(df_c["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip())]
+                row_f = df_f[(df_f["Operador"].astype(str).str.strip() == op_feedback.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_feedback.strip())]
+                
+                if row_c.empty:
+                    st.info("Nenhum dado de monitoria foi localizado para este ciclo específico.")
+                else:
+                    st.markdown("<div class='feedback-board'>", unsafe_allow_html=True)
+                    
+                    # Seção de Métricas Principais
+                    num_cols = sum([show_mp, show_leal, show_nps])
+                    if num_cols > 0:
+                        m_cols = st.columns(num_cols)
+                        idx_col = 0
+                        if show_mp:
+                            val = row_c.iloc[0]["Nota_Banco"]
+                            m_cols[idx_col].markdown(f"<div class='cx-metric-card' style='border-top:3px solid #009ee3'><span class='cx-label'>Nota Mercado Pago</span><div class='cx-value'>{val}</div></div>", unsafe_allow_html=True)
+                            idx_col += 1
+                        if show_leal:
+                            val = row_c.iloc[0]["Nota_Interna"]
+                            m_cols[idx_col].markdown(f"<div class='cx-metric-card' style='border-top:3px solid #5865f2'><span class='cx-label'>Nota Auditoria Leal</span><div class='cx-value'>{val}</div></div>", unsafe_allow_html=True)
+                            idx_col += 1
+                        if show_nps:
+                            val = row_c.iloc[0]["NPS"]
+                            m_cols[idx_col].markdown(f"<div class='cx-metric-card' style='border-top:3px solid #23a55a'><span class='cx-label'>Score NPS</span><div class='cx-value'>{val if pd.notna(val) else 'S/D'}</div></div>", unsafe_allow_html=True)
+                    
+                    # Seção de Pilares Técnicos
+                    if show_pilares:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        st.markdown("#### 🎯 Alinhamento de Pilares Operacionais")
+                        pc1, pc2, pc3 = st.columns(3)
+                        pc1.metric("Compliance e Regras", f"{row_c.iloc[0]['Compliance'] or 0}%")
+                        pc2.metric("Soft Skills e Empatia", f"{row_c.iloc[0]['Soft_Skills'] or 0}%")
+                        pc3.metric("Resolutividade (FCR)", f"{row_c.iloc[0]['FCR'] or 0}%")
+                        
+                    # Seção de Textos de Diagnóstico/PDI
+                    if show_gaps:
+                        gap_text = row_f.iloc[0]["Gaps"] if not row_f.empty else "Não documentado."
+                        st.markdown(f"<div class='feedback-card-glow'><div class='feedback-title'>🔍 Diagnóstico e Gaps Identificados</div><div class='feedback-text'>{gap_text}</div></div>", unsafe_allow_html=True)
+                        
+                    if show_pdi:
+                        pdi_text = row_f.iloc[0]["PDI"] if not row_f.empty else "Não documentado."
+                        st.markdown(f"<div class='feedback-card-glow' style='border-left-color: #23a55a;'><div class='feedback-title' style='color:#23a55a;'>🌱 Plano de Desenvolvimento Individual (PDI)</div><div class='feedback-text'>{pdi_text}</div></div>", unsafe_allow_html=True)
+                        
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 4. LOG NOTES (ALTERAÇÃO: NUM_INPUT PARA EDIÇÃO COMPLETA A QUALQUER MOMENTO)
     elif view_mode == "📥 Log Notes":
         st.title("Central de Auditoria de Monitoria (QA)")
+        st.markdown("Insira ou edite as notas do operador para o ciclo selecionado. Se o ciclo já possuir notas, elas serão substituídas automaticamente.")
         if not lista_ops: st.warning("Cadastre profissionais antes de realizar auditorias.")
         else:
             with st.container(border=True):
                 col1, col2 = st.columns(2)
                 with col1:
                     op_alvo = st.selectbox("Escolha o Operador:", [o["nome"] for o in lista_ops])
-                    ciclo_alvo = st.selectbox("Ciclo Evaluado:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
-                    nota_mp = st.number_input("Nota Oficial Mercado Pago (0 a 100):", 0.0, 100.0, 85.0)
-                    nota_leal = st.number_input("Nota Interna Leal (0 a 100):", 0.0, 100.0, 85.0)
+                    ciclo_alvo = st.selectbox("Ciclo Avaliado:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
+                    
+                    # Puxar dados pré-existentes se houver para facilitar re-edição fluida
+                    df_c_atual = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
+                    match_existente = df_c_atual[(df_c_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())]
+                    
+                    val_init_mp = float(match_existente.iloc[0]["Nota_Banco"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Nota_Banco"]) else 85.0
+                    val_init_leal = float(match_existente.iloc[0]["Nota_Interna"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Nota_Interna"]) else 85.0
+                    val_init_nps = float(match_existente.iloc[0]["NPS"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["NPS"]) else 0.0
+                    
+                    nota_mp = st.number_input("Nota Oficial Mercado Pago (0 a 100):", 0.0, 100.0, val_init_mp, step=1.0)
+                    nota_leal = st.number_input("Nota Interna Leal (0 a 100):", 0.0, 100.0, val_init_leal, step=1.0)
+                    nota_nps = st.number_input("Nota NPS Geral do Operador (-100 a 100):", -100.0, 100.0, val_init_nps, step=1.0)
                 with col2:
-                    st.markdown("<span class='cx-label'>Pilares Técnicos</span>", unsafe_allow_html=True)
-                    v_comp = st.slider("Compliance e Regras:", 0, 100, 85)
-                    v_soft = st.slider("Soft Skills e Cordialidade:", 0, 100, 85)
-                    v_fcr = st.slider("Resolutividade (FCR):", 0, 100, 85)
-                diag = st.text_area("Diagnóstico Técnico de Gaps:")
-                pdi = st.text_area("Plano de Ação Corretivo (PDI):")
+                    st.markdown("<span class='cx-label'>Pilares Técnicos (Digite o valor de 0 a 100)</span>", unsafe_allow_html=True)
+                    val_init_comp = int(match_existente.iloc[0]["Compliance"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Compliance"]) else 85
+                    val_init_soft = int(match_existente.iloc[0]["Soft_Skills"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Soft_Skills"]) else 85
+                    val_init_fcr = int(match_existente.iloc[0]["FCR"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["FCR"]) else 85
+                    
+                    v_comp = st.number_input("Compliance e Regras:", 0, 100, val_init_comp, step=1)
+                    v_soft = st.number_input("Soft Skills e Cordialidade:", 0, 100, val_init_soft, step=1)
+                    v_fcr = st.number_input("Resolutividade (FCR):", 0, 100, val_init_fcr, step=1)
                 
-                if st.button("🚀 Gravar Auditoria e Sincronizar com Google Sheets"):
-                    df_c = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])
+                df_f_atual = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
+                match_f_existente = df_f_atual[(df_f_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())]
+                val_init_gaps = str(match_f_existente.iloc[0]["Gaps"]) if not match_f_existente.empty else ""
+                val_init_pdi = str(match_f_existente.iloc[0]["PDI"]) if not match_f_existente.empty else ""
+                
+                diag = st.text_area("Diagnóstico Técnico de Gaps:", value=val_init_gaps)
+                pdi = st.text_area("Plano de Ação Corretivo (PDI):", value=val_init_pdi)
+                
+                if st.button("🚀 Gravar / Atualizar Auditoria no Google Sheets"):
+                    df_c = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
                     match = (df_c["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())
                     if match.any():
-                        df_c.loc[df_c[match].index, ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"]] = [nota_mp, nota_leal, v_comp, v_soft, v_fcr]
+                        df_c.loc[df_c[match].index, ["Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"]] = [nota_mp, nota_leal, v_comp, v_soft, v_fcr, nota_nps]
                     else:
-                        df_c = pd.concat([df_c, pd.DataFrame([{"Ciclo": ciclo_alvo, "Operador": op_alvo.strip(), "Nota_Banco": nota_mp, "Nota_Interna": nota_leal, "Compliance": v_comp, "Soft_Skills": v_soft, "FCR": v_fcr}])], ignore_index=True)
+                        df_c = pd.concat([df_c, pd.DataFrame([{"Ciclo": ciclo_alvo, "Operador": op_alvo.strip(), "Nota_Banco": nota_mp, "Nota_Interna": nota_leal, "Compliance": v_comp, "Soft_Skills": v_soft, "FCR": v_fcr, "NPS": nota_nps}])], ignore_index=True)
                     save_data("Historico_Ciclos", df_c)
                     
                     df_f = get_data("Feedbacks", ["Data_Hora", "Operador", "Ciclo", "Metricas", "Gaps", "PDI"])
-                    df_f = pd.concat([df_f, pd.DataFrame([{"Data_Hora": datetime.now().strftime('%d/%m/%Y %H:%M'), "Operador": op_alvo.strip(), "Ciclo": ciclo_alvo, "Metricas": f"MP: {nota_mp} | Leal: {nota_leal}", "Gaps": diag if diag else 'Nenhum', "PDI": pdi if pdi else 'Preventivo'}])], ignore_index=True)
+                    match_f = (df_f["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_f["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip())
+                    if match_f.any():
+                        df_f.loc[df_f[match_f].index, ["Data_Hora", "Metricas", "Gaps", "PDI"]] = [datetime.now().strftime('%d/%m/%Y %H:%M'), f"MP: {nota_mp} | Leal: {nota_leal} | NPS: {nota_nps}", diag if diag else 'Nenhum', pdi if pdi else 'Preventivo']
+                    else:
+                        df_f = pd.concat([df_f, pd.DataFrame([{"Data_Hora": datetime.now().strftime('%d/%m/%Y %H:%M'), "Operador": op_alvo.strip(), "Ciclo": ciclo_alvo, "Metricas": f"MP: {nota_mp} | Leal: {nota_leal} | NPS: {nota_nps}", "Gaps": diag if diag else 'Nenhum', "PDI": pdi if pdi else 'Preventivo'}])], ignore_index=True)
                     save_data("Feedbacks", df_f)
-                    st.success("Dados enviados com sucesso!")
+                    st.success("Dados salvos e sincronizados perfeitamente!")
                     st.rerun()
 
-    # 4. AI STUDIO
+    # 5. AI STUDIO
     elif view_mode == "🤖 AI Studio":
         st.title("AI Studio Engine")
         if not lista_ops: st.warning("Cadastre operadores primeiro.")
@@ -353,14 +458,14 @@ def main():
             mod_sel = st.selectbox("Template Estrutural:", list(templates.keys()))
             obs_lider = st.text_area("Observações Avançadas:")
             
-            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR"])[lambda x: x["Operador"].astype(str).str.strip() == op_ai.strip()]
+            df_ind = get_data("Historico_Ciclos", ["Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])[lambda x: x["Operador"].astype(str).str.strip() == op_ai.strip()]
             mb = pd.to_numeric(df_ind["Nota_Banco"], errors="coerce").mean() if not df_ind.empty else 0.0
             mi = pd.to_numeric(df_ind["Nota_Interna"], errors="coerce").mean() if not df_ind.empty else 0.0
             
             payload = templates[mod_sel].replace("{{OPERADOR}}", op_ai).replace("{{NOTA_BANCO}}", f"{mb:.1f}").replace("{{NOTA_INTERNA}}", f"{mi:.1f}").replace("{{NOTAS_LIDER}}", obs_lider if obs_lider else "Sem notas.")
             st.text_area("Payload Pronto:", value=payload, height=200)
 
-    # 5. ADD OPERATOR
+    # 6. ADD OPERATOR
     elif view_mode == "➕ Add Operator":
         st.title("Provisioning System")
         with st.container(border=True):
@@ -372,7 +477,7 @@ def main():
                         st.success("Criado!"); st.rerun()
                     else: st.error("Operador já cadastrado!")
 
-    # 6. CONTROL MANAGEMENT 
+    # 7. CONTROL MANAGEMENT
     elif view_mode == "⚙️ Control Management":
         st.title("Control Management")
         if not lista_ops: 
