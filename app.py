@@ -250,7 +250,12 @@ def main():
                     st.markdown(f"<div class='cx-metric-card' style='border-top: 3px solid #5865f2;'><div style='display:flex; justify-content:space-between;'><span class='cx-label'>#{row['Rank']} NO RANKING</span><span style='color:#23a55a; font-size:11px; font-weight:700;'>{row['Tempo de Casa']}</span></div><div class='cx-value' style='font-size:18px;'>{row['Operador']}</div><div style='margin-top:10px; font-size:12px; display:flex; justify-content:space-between; color:#b5bac1;'><span>Score MP: <b>{row['Média Mercado Pago']}</b></span><span>Score QA Leal: <b>{row['Média Interna QA']}</b></span></div></div>", unsafe_allow_html=True)
             
             st.divider()
-            st.dataframe(df_master, use_container_width=True, hide_index=True)
+            
+            # ATUALIZAÇÃO: Estilização para centralizar dados e cabeçalhos da planilha gerada
+            df_centralizado = df_master.style.set_properties(**{'text-align': 'center'}).set_table_styles([
+                {'selector': 'th', 'props': [('text-align', 'center')]}
+            ])
+            st.dataframe(df_centralizado, use_container_width=True, hide_index=True)
 
     # 2. PROFILE ANALYTICS
     elif view_mode == "👤 Profile Analytics":
@@ -277,9 +282,13 @@ def main():
             iniciais = "".join([p[0] for p in op_escolhido.split()[:2]]).upper()
             st.markdown(f"<div class='discord-profile'><div class='discord-banner'></div><div class='discord-avatar-area'><div class='discord-avatar'>{iniciais}<div class='discord-status-online'></div></div><div class='discord-badge-container'>{badges}</div></div><div class='discord-body'><h2 style='margin:0; font-size:24px; color:#ffffff;'>{meta_op['nome']}</h2><p style='margin:2px 0 10px 0; color:#b5bac1; font-size:14px;'>@operador_cx_leal</p><hr style='border-color:#2b2d31 !important;'><div style='display:grid; grid-template-columns: 1fr 1fr 1fr; gap:15px; margin-top:15px;'><div><span class='cx-label'>SQUAD ALOCADA</span><div style='color:#dbdee1; font-size:14px; font-weight:600;'>{meta_op['squad']}</div></div><div><span class='cx-label'>PARCEIRO</span><div style='color:#009ee3; font-size:14px; font-weight:600;'>Leal ➔ Mercado Pago</div></div><div><span class='cx-label'>TEMPO DE ATIVIDADE</span><div style='color:#23a55a; font-size:14px; font-weight:600;'>{tempo_casa}</div></div></div></div></div>", unsafe_allow_html=True)
             
+            # ATUALIZAÇÃO: Tratamento seguro de strings e floats para evitar o ValueError
+            txt_banco = f"{med_banco:.1f}" if med_banco > 0 else "S/D"
+            txt_interna = f"{med_interna:.1f}" if med_interna > 0 else "S/D"
+            
             c1, c2, c3 = st.columns(3)
-            with c1: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Mercado Pago</span><div class='cx-value'>{med_banco:.1f if med_banco > 0 else 'S/D'}</div></div>", unsafe_allow_html=True)
-            with c2: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Auditoria Leal</span><div class='cx-value'>{med_interna:.1f if med_interna > 0 else 'S/D'}</div></div>", unsafe_allow_html=True)
+            with c1: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Mercado Pago</span><div class='cx-value'>{txt_banco}</div></div>", unsafe_allow_html=True)
+            with c2: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Média Auditoria Leal</span><div class='cx-value'>{txt_interna}</div></div>", unsafe_allow_html=True)
             with c3: st.markdown(f"<div class='cx-metric-card'><span class='cx-label'>Monitorias Coletadas</span><div class='cx-value'>{len(df_ind)} Ciclos</div></div>", unsafe_allow_html=True)
             
             if not df_ind.empty and "Compliance" in df_ind.columns:
@@ -305,7 +314,7 @@ def main():
                 col1, col2 = st.columns(2)
                 with col1:
                     op_alvo = st.selectbox("Escolha o Operador:", [o["nome"] for o in lista_ops])
-                    ciclo_alvo = st.selectbox("Ciclo Avaliado:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
+                    ciclo_alvo = st.selectbox("Ciclo Evaluado:", ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4"])
                     nota_mp = st.number_input("Nota Oficial Mercado Pago (0 a 100):", 0.0, 100.0, 85.0)
                     nota_leal = st.number_input("Nota Interna Leal (0 a 100):", 0.0, 100.0, 85.0)
                 with col2:
@@ -363,7 +372,7 @@ def main():
                         st.success("Criado!"); st.rerun()
                     else: st.error("Operador já cadastrado!")
 
-    # 6. CONTROL MANAGEMENT (MÓDULO CORRIGIDO CONTRA LOOPS)
+    # 6. CONTROL MANAGEMENT 
     elif view_mode == "⚙️ Control Management":
         st.title("Control Management")
         if not lista_ops: 
@@ -375,19 +384,15 @@ def main():
             t_edit, t_danger = st.tabs(["📝 Editar", "🚨 Excluir"])
             
             with t_edit:
-                # Componente 1: Correção do Nome
                 nn = st.text_input("Corrigir Nome:", value=meta_g["nome"])
                 
-                # Resgate seguro da data atual cadastrada
                 try: 
                     da_inicial = datetime.strptime(meta_g["admissao"], "%d/%m/%Y").date()
                 except: 
                     da_inicial = datetime.now().date()
                 
-                # Componente 2: Correção da Admissão (AGORA FORA DO BOTÃO - SEM LOOP!)
                 nova_data_adm = st.date_input("Corrigir Data de Admissão:", value=da_inicial)
                 
-                # Botão único para executar as alterações na planilha
                 if st.button("Commit Alterações"):
                     if nn.strip():
                         with st.spinner("Sincronizando com o Google Sheets..."):
