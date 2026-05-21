@@ -371,7 +371,7 @@ def main():
                         
                 st.markdown(df_pivot_nps.to_html(index=False, classes="clean-table"), unsafe_allow_html=True)
 
-        with tab_ciclo_mes = st.tabs:
+        with tab_ciclo_mes:
             st.markdown("### Visão Gerencial Agrupada")
             if df_ciclos.empty:
                 st.info("Sem dados suficientes.")
@@ -510,7 +510,7 @@ def main():
                 col1, col2 = st.columns(2)
                 with col1:
                     op_alvo = st.selectbox("Escolha o Operador:", [o["nome"] for o in lista_ops])
-                    ciclo_alvo = st.selectbox("Ciclo / Amostra Avaliada:", lista_ciclos_amostras)
+                    ciclo_alvo = st.selectbox("Ciclo / Amostra Evaluated:", lista_ciclos_amostras)
                     
                     df_c_atual = get_data("Historico_Ciclos", ["Mes", "Ciclo", "Operador", "Nota_Banco", "Nota_Interna", "Compliance", "Soft_Skills", "FCR", "NPS"])
                     match_existente = df_c_atual[(df_c_atual["Operador"].astype(str).str.strip() == op_alvo.strip()) & (df_c_atual["Ciclo"].astype(str).str.strip() == ciclo_alvo.strip()) & (df_c_atual["Mes"].astype(str).str.strip() == mes_ativo)]
@@ -524,7 +524,7 @@ def main():
                     nota_nps = st.number_input("Nota NPS Geral do Operador (-100 a 100):", -100.0, 100.0, val_init_nps, step=1.0)
                 with col2:
                     st.markdown("<span class='cx-label'>Pilares Técnicos (Digite o valor de 0 a 100)</span>", unsafe_allow_html=True)
-                    val_init_comp = int(match_existente.iloc[0]["Compliance"]) if not match_existente.empty parks and pd.notna(match_existente.iloc[0]["Compliance"]) else 85
+                    val_init_comp = int(match_existente.iloc[0]["Compliance"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Compliance"]) else 85
                     val_init_soft = int(match_existente.iloc[0]["Soft_Skills"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["Soft_Skills"]) else 85
                     val_init_fcr = int(match_existente.iloc[0]["FCR"]) if not match_existente.empty and pd.notna(match_existente.iloc[0]["FCR"]) else 85
                     
