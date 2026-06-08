@@ -3,7 +3,7 @@ import pandas as pd
 import json
 from datetime import datetime, date
 from pathlib import Path
- 
+
 # ─── Configuração da página ───────────────────────────────────────────────────
 st.set_page_config(
     page_title="Leal — CX",
@@ -11,15 +11,15 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
- 
+
 # ─── CSS: Design Premium — Preto dominante ────────────────────────────────────
 GALAXY_CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
- 
+
 /* ── RESET & BASE ── */
 *, *::before, *::after { box-sizing: border-box; }
- 
+
 html, body,
 [data-testid="stApp"],
 [data-testid="stAppViewContainer"],
@@ -29,14 +29,14 @@ html, body,
     color: #E8E8E8 !important;
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
 }
- 
+
 /* ── CANVAS ESTRELAS ── */
 #star-canvas {
     position: fixed; top: 0; left: 0;
     width: 100vw; height: 100vh;
     pointer-events: none; z-index: 0;
 }
- 
+
 /* ── SIDEBAR ── */
 [data-testid="stSidebar"] {
     background: #0D0D0D !important;
@@ -45,7 +45,57 @@ html, body,
 }
 [data-testid="stSidebar"] * { color: #E8E8E8 !important; }
 [data-testid="stSidebarContent"] { padding: 0 !important; }
- 
+
+/* ── BOTÕES DE NAVEGAÇÃO DA SIDEBAR ── */
+[data-testid="stSidebar"] .stButton > button {
+    background: transparent !important;
+    color: #888888 !important;
+    border: none !important;
+    border-radius: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 13px !important;
+    font-weight: 400 !important;
+    padding: 10px 12px !important;
+    text-align: left !important;
+    width: 100% !important;
+    transition: all 0.15s ease !important;
+    letter-spacing: 0.01em !important;
+    margin-bottom: 2px !important;
+    box-shadow: none !important;
+}
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: #161616 !important;
+    color: #CCCCCC !important;
+    border: none !important;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+/* Botão de navegação ativo */
+[data-testid="stSidebar"] .nav-active > button,
+[data-testid="stSidebar"] .nav-active > button:hover {
+    background: #161616 !important;
+    color: #C9A84C !important;
+    border: none !important;
+    font-weight: 600 !important;
+    box-shadow: none !important;
+}
+
+/* Botão de sair */
+[data-testid="stSidebar"] .btn-sair > button {
+    background: transparent !important;
+    color: #555555 !important;
+    border: 1px solid #1A1A1A !important;
+    border-radius: 8px !important;
+    font-size: 12px !important;
+    margin-top: 4px !important;
+}
+[data-testid="stSidebar"] .btn-sair > button:hover {
+    color: #E8E8E8 !important;
+    border-color: #333333 !important;
+    background: #111111 !important;
+}
+
 /* ── MÉTRICAS ── */
 [data-testid="stMetric"] {
     background: #111111 !important;
@@ -79,7 +129,7 @@ html, body,
     font-weight: 600 !important;
 }
 [data-testid="stMetricDelta"] { color: #C9A84C !important; font-size: 12px !important; }
- 
+
 /* ── INPUTS ── */
 input, textarea,
 [data-testid="stTextInput"] input,
@@ -101,7 +151,7 @@ input:focus, textarea:focus,
     outline: none !important;
 }
 input::placeholder, textarea::placeholder { color: #444444 !important; }
- 
+
 /* ── LABELS ── */
 label, [data-testid="stWidgetLabel"],
 [data-testid="stWidgetLabel"] p {
@@ -111,9 +161,10 @@ label, [data-testid="stWidgetLabel"],
     letter-spacing: 0.04em !important;
     margin-bottom: 4px !important;
 }
- 
-/* ── BOTÕES ── */
-.stButton > button {
+
+/* ── BOTÕES (geral, fora da sidebar) ── */
+.main .stButton > button,
+[data-testid="stMain"] .stButton > button {
     background: #111111 !important;
     color: #E8E8E8 !important;
     border: 1px solid #2A2A2A !important;
@@ -125,15 +176,19 @@ label, [data-testid="stWidgetLabel"],
     transition: all 0.2s ease !important;
     letter-spacing: 0.02em !important;
 }
-.stButton > button:hover {
+.main .stButton > button:hover,
+[data-testid="stMain"] .stButton > button:hover {
     background: #1A1A1A !important;
     border-color: #C9A84C !important;
     color: #C9A84C !important;
     box-shadow: 0 0 16px rgba(201,168,76,0.15) !important;
     transform: translateY(-1px) !important;
 }
-.stButton > button:active { transform: translateY(0) !important; }
- 
+.main .stButton > button:active,
+[data-testid="stMain"] .stButton > button:active {
+    transform: translateY(0) !important;
+}
+
 /* ── SELECTBOX ── */
 [data-baseweb="select"] > div {
     background: #111111 !important;
@@ -167,7 +222,7 @@ label, [data-testid="stWidgetLabel"],
     background: #161616 !important;
     color: #C9A84C !important;
 }
- 
+
 /* ── TABELAS / DATAFRAME ── */
 [data-testid="stDataFrame"],
 [data-testid="stDataFrame"] table {
@@ -195,7 +250,7 @@ label, [data-testid="stWidgetLabel"],
     background: #131313 !important;
     color: #FFFFFF !important;
 }
- 
+
 /* ── EXPANDER ── */
 [data-testid="stExpander"] {
     background: #0D0D0D !important;
@@ -218,7 +273,7 @@ label, [data-testid="stWidgetLabel"],
     border-bottom: 1px solid #1E1E1E !important;
     color: #C9A84C !important;
 }
- 
+
 /* ── TABS ── */
 [data-testid="stTabs"] [data-baseweb="tab-list"] {
     background: transparent !important;
@@ -239,7 +294,7 @@ label, [data-testid="stWidgetLabel"],
     color: #C9A84C !important;
     border-bottom: 2px solid #C9A84C !important;
 }
- 
+
 /* ── PROGRESS BAR ── */
 [data-testid="stProgressBar"] > div {
     background: #1A1A1A !important;
@@ -251,7 +306,7 @@ label, [data-testid="stWidgetLabel"],
     border-radius: 6px !important;
     box-shadow: 0 0 8px rgba(201,168,76,0.4) !important;
 }
- 
+
 /* ── SLIDER ── */
 [data-testid="stSlider"] > div > div > div {
     background: #1A1A1A !important;
@@ -261,14 +316,14 @@ label, [data-testid="stWidgetLabel"],
     border: 2px solid #080808 !important;
     box-shadow: 0 0 8px rgba(201,168,76,0.5) !important;
 }
- 
+
 /* ── DIVIDER ── */
 hr {
     border: none !important;
     border-top: 1px solid #1A1A1A !important;
     margin: 1.5rem 0 !important;
 }
- 
+
 /* ── ALERTS ── */
 [data-testid="stAlert"] {
     background: #0D0D0D !important;
@@ -278,7 +333,7 @@ hr {
 [data-testid="stAlert"][data-baseweb="notification"] {
     border-left: 3px solid #C9A84C !important;
 }
- 
+
 /* ── FORM SUBMIT BUTTON ── */
 [data-testid="stFormSubmitButton"] > button {
     background: linear-gradient(135deg, #1A1500, #2A2000) !important;
@@ -294,7 +349,7 @@ hr {
     color: #080808 !important;
     box-shadow: 0 0 20px rgba(201,168,76,0.3) !important;
 }
- 
+
 /* ── HEADINGS ── */
 h1 {
     color: #FFFFFF !important;
@@ -310,20 +365,20 @@ h3 {
     font-weight: 500 !important;
     letter-spacing: 0.01em !important;
 }
- 
+
 /* ── SCROLLBAR ── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #080808; }
 ::-webkit-scrollbar-thumb { background: #222222; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #C9A84C; }
- 
+
 /* ── BLOCK CONTAINER ── */
 .block-container {
     padding-top: 2rem !important;
     padding-bottom: 2rem !important;
     max-width: 1400px !important;
 }
- 
+
 /* ── COMPONENTS CUSTOMIZADOS ── */
 .badge-meta {
     display: inline-block;
@@ -358,7 +413,7 @@ h3 {
     margin-right: 6px;
     vertical-align: middle;
 }
- 
+
 /* ── DATE INPUT ── */
 [data-testid="stDateInput"] input {
     background: #111111 !important;
@@ -366,7 +421,7 @@ h3 {
     color: #E8E8E8 !important;
     border-radius: 8px !important;
 }
- 
+
 /* ── NUMBER INPUT BOTÕES +/- ── */
 [data-testid="stNumberInput"] button {
     background: #1A1A1A !important;
@@ -378,7 +433,7 @@ h3 {
     background: #222222 !important;
     color: #C9A84C !important;
 }
- 
+
 /* ── FILE UPLOADER ── */
 [data-testid="stFileUploader"] {
     background: #0D0D0D !important;
@@ -388,14 +443,14 @@ h3 {
 [data-testid="stFileUploader"]:hover {
     border-color: #C9A84C !important;
 }
- 
+
 /* ── CHECKBOX ── */
 [data-testid="stCheckbox"] span {
     background: #111111 !important;
     border: 1px solid #2A2A2A !important;
     border-radius: 4px !important;
 }
- 
+
 /* ── DOWNLOAD BUTTON ── */
 [data-testid="stDownloadButton"] > button {
     background: #0D0D0D !important;
@@ -409,7 +464,7 @@ h3 {
     border-color: #C9A84C !important;
     box-shadow: 0 0 12px rgba(201,168,76,0.2) !important;
 }
- 
+
 /* ── NOTIFICATION / INFO / SUCCESS ── */
 .stInfo, .stSuccess, .stWarning, .stError {
     border-radius: 8px !important;
@@ -417,7 +472,7 @@ h3 {
 }
 </style>
 """
- 
+
 # ─── JS: Estrelas animadas — tema premium preto ──────────────────────────────
 STARS_JS = """
 <canvas id="star-canvas"></canvas>
@@ -428,11 +483,11 @@ STARS_JS = """
   var ctx = canvas.getContext('2d');
   var W = window.innerWidth, H = window.innerHeight;
   canvas.width = W; canvas.height = H;
- 
+
   var STAR_COUNT = 220;
   var stars = [];
   function rand(a,b){ return Math.random()*(b-a)+a; }
- 
+
   function makeStar(){
     var gold = Math.random() > 0.88;
     return {
@@ -446,7 +501,7 @@ STARS_JS = """
     };
   }
   for(var i=0;i<STAR_COUNT;i++) stars.push(makeStar());
- 
+
   var shooters=[], shooterTimer=0;
   function makeShooter(){
     return {
@@ -456,7 +511,7 @@ STARS_JS = """
       alpha:1.0, life:0, maxLife:rand(25,50)
     };
   }
- 
+
   function draw(){
     ctx.clearRect(0,0,W,H);
     for(var i=0;i<stars.length;i++){
@@ -501,9 +556,9 @@ STARS_JS = """
 })();
 </script>
 """
- 
+
 st.markdown(GALAXY_CSS, unsafe_allow_html=True)
- 
+
 # ─── Constantes ───────────────────────────────────────────────────────────────
 DATA_DIR    = Path("data")
 DATA_DIR.mkdir(exist_ok=True)
@@ -511,32 +566,32 @@ OPS_FILE    = DATA_DIR / "operadores.json"
 EVALS_FILE  = DATA_DIR / "avaliacoes.json"
 FAIXAS_FILE = DATA_DIR / "faixas.json"
 USERS_FILE  = DATA_DIR / "usuarios.json"
- 
+
 NIVEIS = {
     "comandante": "Comandante 🌌",
     "copiloto":   "Copiloto 🚀",
     "observador": "Observador Estelar 🔭",
     "tripulacao": "Tripulação ⭐",
 }
- 
+
 MESES_LABEL = [f"Mês {i:02d}" for i in range(1, 13)]
 CICLOS      = ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4", "Ciclo 5"]
- 
+
 # Cargos simplificados
 CARGOS_GESTAO  = ["Gerente de Qualidade", "Coordenador(a)", "Supervisor(a)", "Analista de Qualidade"]
 CARGOS_OP      = ["Operador(a)"]
- 
+
 # ─── Persistência JSON ────────────────────────────────────────────────────────
 def load_json(path, default):
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return default
- 
+
 def save_json(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
- 
+
 def load_operadores(): return load_json(OPS_FILE, [])
 def save_operadores(d): save_json(OPS_FILE, d)
 def load_avaliacoes(): return load_json(EVALS_FILE, [])
@@ -559,25 +614,20 @@ def load_usuarios():
     ]
     return load_json(USERS_FILE, default)
 def save_usuarios(d): save_json(USERS_FILE, d)
- 
+
 # ─── Helpers de negócio ───────────────────────────────────────────────────────
 def avg_of(values):
     vals = [float(v) for v in values if v not in (None,"") and str(v).strip() != "" and float(v) != 0]
     return round(sum(vals)/len(vals), 2) if vals else None
- 
+
 def eval_int(e):
     """Nota interna: campo 'nota_int' direto (0-100)."""
     v = e.get("nota_int")
     if v in (None, ""): return None
     try: return float(v)
     except: return None
- 
+
 def eval_final(e, pesos):
-    """
-    Nota MP: 0-100 (direto)
-    Nota interna: 0-100 (direto)
-    Nota final = média ponderada das duas, resultado 0-100
-    """
     mp = e.get("mp")
     iv = eval_int(e)
     mp_f = None
@@ -593,13 +643,13 @@ def eval_final(e, pesos):
     if mp_f is not None:
         return round(mp_f, 2)
     return round(iv, 2)
- 
+
 def get_faixa(nota, faixas):
     if nota is None: return None
     for f in sorted(faixas, key=lambda x: x["min"]):
         if f["min"] <= nota <= f["max"]: return f
     return None
- 
+
 def tenure(adm_str):
     if not adm_str: return "—"
     try:
@@ -607,7 +657,7 @@ def tenure(adm_str):
         months = max(0, int((date.today() - adm).days / 30.44))
         return f"{months}m" if months < 12 else f"{months//12}a {months%12}m"
     except: return "—"
- 
+
 def badge_faixa(fx):
     if not fx: return "<span style='color:#444'>—</span>"
     b = fx["bonus"]
@@ -621,18 +671,18 @@ def badge_faixa(fx):
         cor, bg = "#E8CC7A", "rgba(232,204,122,0.15)"
     return (f"<span class='badge-meta' style='color:{cor};background:{bg};"
             f"border:1px solid {cor};'>{fx['desc']} · R$ {fx['bonus']:.2f}</span>")
- 
+
 def nota_cor(v):
     if v is None: return "#555555"
     return "#E8CC7A" if v >= 90 else "#C9A84C" if v >= 80 else "#8B5E3C"
- 
+
 # ─── Sessão ───────────────────────────────────────────────────────────────────
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
     st.session_state.user = None
 if "pesos" not in st.session_state:
     st.session_state.pesos = {"mp": 50, "int": 50}
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # TELA DE LOGIN
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -654,7 +704,7 @@ def tela_login():
         <p style='color:#555555;font-size:12px;'>Operação Mercado Pago</p>
     </div>
     """, unsafe_allow_html=True)
- 
+
     _, c2, _ = st.columns([1, 1.1, 1])
     with c2:
         st.markdown("""
@@ -670,7 +720,7 @@ def tela_login():
         st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
         entrar  = st.button("Entrar", use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
- 
+
         if entrar:
             u = next((u for u in load_usuarios() if u["login"]==login_i and u["senha"]==senha_i), None)
             if u:
@@ -679,15 +729,15 @@ def tela_login():
                 st.rerun()
             else:
                 st.error("Credenciais inválidas.")
- 
+
     st.markdown("""
     <div style='text-align:center;margin-top:3rem;color:#222222;font-size:11px;letter-spacing:0.06em;'>
         LEAL — CX · QUALIDADE · MERCADO PAGO
     </div>
     """, unsafe_allow_html=True)
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR
+# SIDEBAR  ← CORRIGIDO: removido st.markdown duplicado do loop de navegação
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_sidebar(user):
     with st.sidebar:
@@ -719,47 +769,40 @@ def render_sidebar(user):
             </div>
         </div>
         """, unsafe_allow_html=True)
- 
+
         nivel = user["nivel"]
         if nivel in ("comandante","copiloto","observador"):
             if "page" not in st.session_state:
                 st.session_state.page = "Dashboard"
- 
-            st.markdown("<div style='padding:0 0.5rem;'>", unsafe_allow_html=True)
-            st.markdown("<p style='font-size:10px;color:#333333;letter-spacing:0.1em;font-weight:600;padding:0 0.3rem;margin-bottom:6px;'>NAVEGAÇÃO</p>", unsafe_allow_html=True)
- 
+
+            st.markdown(
+                "<p style='font-size:10px;color:#333333;letter-spacing:0.1em;"
+                "font-weight:600;padding:0 0.8rem;margin-bottom:4px;'>NAVEGAÇÃO</p>",
+                unsafe_allow_html=True
+            )
+
             pages = [("🏠","Dashboard"),("👥","Operadores"),("📋","Avaliações"),("🏆","Metas"),("📈","Evolução")]
             if nivel == "comandante":
                 pages.append(("⚙️","Configurações"))
- 
+
             for icon, pg in pages:
                 is_active = st.session_state.page == pg
-                style = "background:#161616;border-color:#2A2A2A;color:#C9A84C;" if is_active else ""
-                st.markdown(f"""
-                <div style='margin-bottom:2px;'>
-                    <div onclick="window.parent.postMessage({{type:'streamlit:setComponentValue',value:'{pg}'}},)*"
-                         style='display:flex;align-items:center;gap:10px;padding:10px 12px;
-                                border-radius:8px;cursor:pointer;border:1px solid transparent;
-                                {style}transition:all 0.15s;font-size:13px;font-weight:{"600" if is_active else "400"};
-                                color:{"#C9A84C" if is_active else "#888888"};'>
-                        <span style='font-size:15px;'>{icon}</span>
-                        <span>{pg}</span>
-                        {"<div style='margin-left:auto;width:5px;height:5px;border-radius:50%;background:#C9A84C;'></div>" if is_active else ""}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"{icon} {pg}", key=f"nav_{pg}", use_container_width=True):
+                # Aplica classe CSS de ativo via container div
+                css_class = "nav-active" if is_active else "nav-item"
+                st.markdown(f"<div class='{css_class}'>", unsafe_allow_html=True)
+                if st.button(f"{icon}  {pg}", key=f"nav_{pg}", use_container_width=True):
                     st.session_state.page = pg
                     st.rerun()
- 
-            st.markdown("</div>", unsafe_allow_html=True)
- 
+                st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown("---")
-        if st.button("↩ Sair", use_container_width=True):
+        st.markdown("<div class='btn-sair'>", unsafe_allow_html=True)
+        if st.button("↩  Sair", use_container_width=True, key="btn_sair"):
             st.session_state.logged_in = False
             st.session_state.user = None
             st.rerun()
- 
+        st.markdown("</div>", unsafe_allow_html=True)
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -771,127 +814,123 @@ def pagina_dashboard(user, readonly=False):
                         border:1px solid #1A1A1A;display:flex;align-items:center;
                         justify-content:center;font-size:18px;'>🏠</div>
             <div>
-                <h1 style='margin:0;font-size:22px;'>Dashboard Geral</h1>
-                <p style='margin:0;font-size:12px;color:#444;'>Visão geral de qualidade e metas</p>
+                <h1 style='margin:0;font-size:22px;'>Dashboard</h1>
+                <p style='margin:0;font-size:12px;color:#444;'></p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
+    st.markdown(f"<p style='color:#444444;font-size:12px;margin-top:-1rem;margin-bottom:1.5rem;'>Atualizado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>", unsafe_allow_html=True)
 
-    ops = load_operadores()
-    evs = load_avaliacoes()
+    ops    = load_operadores()
+    evs    = load_avaliacoes()
     faixas = load_faixas()
-    pesos = st.session_state.pesos
-
+    pesos  = st.session_state.pesos
     ativos = [o for o in ops if o.get("status") == "Ativo"]
 
-    # 1. KPIs Gerais
-    c1, c2, c3, c4, c5, c6 = st.columns(6)
-    c1.metric("👥 Op. Ativos", len(ativos))
-    c2.metric("📋 Avaliações", len(evs))
+    all_mps  = [float(e["mp"])  for e in evs if e.get("mp")  not in (None,"")]
+    all_ivs  = [eval_int(e)     for e in evs]
+    all_fins = [eval_final(e,pesos) for e in evs]
+    all_fins = [v for v in all_fins if v is not None]
+    all_ivs  = [v for v in all_ivs  if v is not None]
 
-    avg_mp = avg_of([e.get("mp") for e in evs])
-    avg_iv = avg_of([eval_int(e) for e in evs])
-    avg_fin = avg_of([eval_final(e, pesos) for e in evs])
+    avg_mp  = round(sum(all_mps) /len(all_mps), 1)  if all_mps  else None
+    avg_iv  = round(sum(all_ivs) /len(all_ivs), 1)  if all_ivs  else None
+    avg_fin = round(sum(all_fins)/len(all_fins), 1)  if all_fins else None
 
-    total_bonus = 0.0
-    for e in evs:
-        f_v = eval_final(e, pesos)
-        fx = get_faixa(f_v, faixas)
-        if fx:
-            total_bonus += fx["bonus"]
+    total_bonus = 0
+    for op in ativos:
+        op_evs = sorted([e for e in evs if e["op_id"]==op["id"]], key=lambda x:(x.get("mes",""),x.get("ciclo","")), reverse=True)
+        if op_evs:
+            fx = get_faixa(eval_final(op_evs[0], pesos), faixas)
+            total_bonus += fx["bonus"] if fx else 0
 
-    c3.metric("🎯 Média MP", f"{avg_mp:.1f}" if avg_mp is not None else "—")
-    c4.metric("📝 Média interna", f"{avg_iv:.1f}" if avg_iv is not None else "—")
+    abaixo_80 = sum(
+        1 for op in ativos
+        if (lambda ev: ev is not None and eval_final(ev,pesos) is not None and eval_final(ev,pesos)<80)(
+            next((e for e in sorted([e for e in evs if e["op_id"]==op["id"]], key=lambda x:(x.get("mes",""),x.get("ciclo","")),reverse=True)),None)
+        )
+    )
+
+    c1,c2,c3,c4,c5,c6 = st.columns(6)
+    c1.metric("👥 Ativos",          len(ativos), f"de {len(ops)}")
+    c2.metric("📋 Avaliações",       len(evs))
+    c3.metric("🎯 Média MP",         f"{avg_mp:.1f}"  if avg_mp  is not None else "—")
+    c4.metric("📝 Média interna",    f"{avg_iv:.1f}"  if avg_iv  is not None else "—")
     c5.metric("🏆 Nota final média", f"{avg_fin:.1f}%" if avg_fin is not None else "—")
-    c6.metric("💰 Total bonificação", f"R$ {total_bonus:.2f}")
+    c6.metric("💰 Total bonificação",f"R$ {total_bonus:.2f}")
 
     st.markdown("---")
+    meses_disp = sorted(set(e.get("mes","") for e in evs if e.get("mes")), reverse=True)
+    col_s, _ = st.columns([2,4])
+    mes_sel = col_s.selectbox("📅 Filtrar mês", ["Todos"]+meses_disp, key="dash_mes")
 
-    # Filtro de Mês
-    meses_disp = sorted(set(e.get("mes", "") for e in evs if e.get("mes")), reverse=True)
-    col_s, _ = st.columns([2, 4])
-    mes_sel = col_s.selectbox("📅 Filtrar mês", ["Todos"] + meses_disp, key="dash_mes")
-
-    # 2. Layout principal dividindo a tabela de ranking e a barra lateral de metas
-    col_tabela, col_ranking_lateral = st.columns([2.2, 1])
-
-    with col_tabela:
-        st.markdown("### 🧑‍🚀 Resumo da equipe")
-        rows = []
-        for op in ativos:
-            op_evs = [e for e in evs if e["op_id"] == op["id"]]
-            if mes_sel != "Todos":
-                op_evs = [e for e in op_evs if e.get("mes") == mes_sel]
-            op_evs = sorted(op_evs, key=lambda x: x.get("ciclo", ""), reverse=True)
-            
-            last = op_evs[0] if op_evs else None
-            mp_v = float(last["mp"]) if last and last.get("mp") not in (None, "") else None
-            iv_v = eval_int(last) if last else None
-            fn_v = eval_final(last, pesos) if last else None
-            fx = get_faixa(fn_v, faixas)
-
-            rows.append({
-                "Operador": op["nome"],
-                "Tempo de casa": tenure(op.get("adm")),
-                "Nota MP": f"{mp_v:.1f}" if mp_v is not None else "—",
-                "Nota interna": f"{iv_v:.1f}" if iv_v is not None else "—",
-                "Nota final": f"{fn_v:.1f}%" if fn_v is not None else "—",
-                "Faixa": fx["desc"] if fx else "—",
-                "Bônus": f"R$ {fx['bonus']:.2f}" if fx else "R$ 0,00",
-            })
-
-        if rows:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        else:
-            st.info("Cadastre operadores e avaliações para ver o resumo.")
-
-        # Médias por Ciclo
+    st.markdown("### 🧑‍🚀 Resumo da equipe")
+    rows = []
+    for op in ativos:
+        op_evs = [e for e in evs if e["op_id"]==op["id"]]
         if mes_sel != "Todos":
-            st.markdown(f"### 📊 Médias por ciclo — {mes_sel}")
-            ciclo_data = []
-            for ciclo in CICLOS:
-                cevs = [e for e in evs if e.get("mes") == mes_sel and e.get("ciclo") == ciclo]
-                if not cevs:
-                    continue
-                fps = [eval_final(e, pesos) for e in cevs if eval_final(e, pesos) is not None]
-                if fps:
-                    ciclo_data.append({"Ciclo": ciclo, "Média Nota Final": f"{sum(fps)/len(fps):.1f}%"})
-            if ciclo_data:
-                st.dataframe(pd.DataFrame(ciclo_data), use_container_width=True, hide_index=True)
+            op_evs = [e for e in op_evs if e.get("mes")==mes_sel]
+        op_evs = sorted(op_evs, key=lambda x: x.get("ciclo",""), reverse=True)
+        last = op_evs[0] if op_evs else None
+        mp_v = float(last["mp"]) if last and last.get("mp") not in (None,"") else None
+        iv_v = eval_int(last)    if last else None
+        fn_v = eval_final(last, pesos) if last else None
+        fx   = get_faixa(fn_v, faixas)
+        rows.append({
+            "Operador":      op["nome"],
+            "Tempo de casa": tenure(op.get("adm")),
+            "Nota MP":       f"{mp_v:.1f}" if mp_v is not None else "—",
+            "Nota interna":  f"{iv_v:.1f}" if iv_v is not None else "—",
+            "Nota final":    f"{fn_v:.1f}%" if fn_v is not None else "—",
+            "Faixa":         fx["desc"] if fx else "—",
+            "Bônus":         f"R$ {fx['bonus']:.2f}" if fx else "R$ 0,00",
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    else:
+        st.info("Cadastre operadores e avaliações para ver o resumo.")
 
-    with col_ranking_lateral:
-        st.markdown("### 🏆 Ranking do Período")
-        
-        # Filtra e calcula médias para o ranking lateral de forma limpa e sem HTML quebrado
+    if mes_sel != "Todos":
+        st.markdown(f"### 📊 Médias por ciclo — {mes_sel}")
+        ciclo_data = []
+        for ciclo in CICLOS:
+            cevs = [e for e in evs if e.get("mes")==mes_sel and e.get("ciclo")==ciclo]
+            if not cevs: continue
+            fps = [eval_final(e,pesos) for e in cevs if eval_final(e,pesos) is not None]
+            mps = [float(e["mp"]) for e in cevs if e.get("mp") not in (None,"")]
+            ciclo_data.append({
+                "Ciclo": ciclo,
+                "Média MP": round(sum(mps)/len(mps),1) if mps else None,
+                "Nota final": round(sum(fps)/len(fps),1) if fps else None,
+                "Qtd avaliados": len(cevs),
+            })
+        if ciclo_data:
+            df_c = pd.DataFrame(ciclo_data)
+            st.dataframe(df_c, use_container_width=True, hide_index=True)
+            df_chart = df_c.dropna(subset=["Nota final"])
+            if not df_chart.empty:
+                st.line_chart(df_chart.set_index("Ciclo")[["Nota final"]], color="#4CC9F0")
+
+    st.markdown("---")
+    st.markdown("### 🏆 Situação de metas — mês atual")
+    mes_rec = meses_disp[0] if meses_disp else None
+    if mes_rec:
         for op in ativos:
-            op_evs = [e for e in evs if e["op_id"] == op["id"]]
-            if mes_sel != "Todos":
-                op_evs = [e for e in op_evs if e.get("mes") == mes_sel]
-            
-            if not op_evs:
-                continue
-                
-            fn_med = avg_of([eval_final(e, pesos) for e in op_evs])
+            op_evs = [e for e in evs if e["op_id"]==op["id"] and e.get("mes")==mes_rec]
+            if not op_evs: continue
+            fn_vals = [eval_final(e,pesos) for e in op_evs if eval_final(e,pesos) is not None]
+            fn_med  = round(sum(fn_vals)/len(fn_vals),1) if fn_vals else None
             fx = get_faixa(fn_med, faixas)
-            
-            # Bloco corrigido usando o padrão nativo e seguro do Streamlit
-            if fn_med:
-                cor_nota = nota_cor(fn_med)
-                # Formatação limpa do container de cada operador com tratamento correto de string e HTML
-                st.markdown(
-                    f"<div style='padding:10px; background:#0D0D0D; border:1px solid #1A1A1A; "
-                    f"border-radius:8px; margin-bottom:8px; display:flex; justify-content:between; align-items:center; gap:8px;'>"
-                    f"  <div style='flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'>"
-                    f"      <span style='color:#E2E8F0; font-size:13px; font-weight:500;'>{op['nome']}</span>"
-                    f"  </div>"
-                    f"  <div style='display:flex; align-items:center; gap:8px; flex-shrink:0;'> "
-                    f"      <span style='font-weight:700; color:{cor_nota}; font-size:13px;'>{fn_med:.1f}%</span>"
-                    f"      {badge_faixa(fx)}"
-                    f"  </div>"
-                    f"</div>", 
-                    unsafe_allow_html=True
-                )
+            cor = nota_cor(fn_med)
+            st.markdown(
+                f"<div style='display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #1F3A52;'>"
+                f"<span style='flex:1;color:#E2E8F0;font-size:14px;'>{op['nome']}</span>"
+                f"{'<span style=\"font-weight:700;color:'+cor+';\">'+str(fn_med)+'%</span>' if fn_med else '<span style=\"color:#555\">sem avaliação</span>'}"
+                f"{badge_faixa(fx)}</div>",
+                unsafe_allow_html=True
+            )
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # OPERADORES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -909,12 +948,12 @@ def pagina_operadores(user, readonly=False):
         </div>
     </div>
     """, unsafe_allow_html=True)
- 
+
     ops    = load_operadores()
     evs    = load_avaliacoes()
     faixas = load_faixas()
     pesos  = st.session_state.pesos
- 
+
     if not readonly:
         with st.expander("➕ Cadastrar novo operador", expanded=False):
             with st.form("form_op"):
@@ -945,23 +984,23 @@ def pagina_operadores(user, readonly=False):
                                 save_usuarios(usu)
                         st.success(f"✅ {nome} cadastrado!")
                         st.rerun()
- 
+
     st.markdown("---")
     c1, c2 = st.columns([3,1])
     busca  = c1.text_input("🔍 Buscar", placeholder="Nome...")
     filtro = c2.selectbox("Status", ["Todos","Ativo","Afastado","Desligado"], key="op_f")
     lista  = [o for o in ops if (not busca or busca.lower() in o["nome"].lower()) and (filtro=="Todos" or o.get("status")==filtro)]
- 
+
     if not lista:
         st.info("Nenhum operador encontrado.")
         return
- 
+
     for op in lista:
         op_evs = sorted([e for e in evs if e["op_id"]==op["id"]], key=lambda x:(x.get("mes",""),x.get("ciclo","")), reverse=True)
         last   = op_evs[0] if op_evs else None
         fn     = eval_final(last, pesos) if last else None
         fx     = get_faixa(fn, faixas)
- 
+
         with st.expander(f"🧑‍🚀 {op['nome']} — {op.get('cargo','—')} · {tenure(op.get('adm'))}"):
             c1,c2,c3,c4 = st.columns(4)
             c1.metric("Status", op.get("status","—"))
@@ -987,7 +1026,7 @@ def pagina_operadores(user, readonly=False):
                     save_operadores(ops)
                     st.success("Removido.")
                     st.rerun()
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # AVALIAÇÕES
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1005,12 +1044,12 @@ def pagina_avaliacoes(user, readonly=False):
         </div>
     </div>
     """, unsafe_allow_html=True)
- 
+
     ops   = load_operadores()
     evs   = load_avaliacoes()
     pesos = st.session_state.pesos
     ativ  = [o for o in ops if o.get("status")=="Ativo"]
- 
+
     if not readonly and ativ:
         with st.expander("➕ Registrar nova avaliação", expanded=False):
             with st.form("form_eval"):
@@ -1019,7 +1058,7 @@ def pagina_avaliacoes(user, readonly=False):
                 op_nome  = c1.selectbox("Operador", list(op_map.keys()))
                 mes_sel  = c2.selectbox("Mês de referência", MESES_LABEL)
                 ciclo_s  = c3.selectbox("Ciclo / Semana", CICLOS)
- 
+
                 st.markdown("---")
                 c4, c5 = st.columns(2)
                 with c4:
@@ -1028,13 +1067,13 @@ def pagina_avaliacoes(user, readonly=False):
                 with c5:
                     st.markdown("**📝 Nota Avaliação Interna (0–100)**")
                     int_val = st.number_input("Nota interna", 0.0, 100.0, step=0.1, format="%.1f", key="nint")
- 
+
                 st.markdown("---")
                 c6, c7 = st.columns(2)
                 feed_val = c6.text_area("Pontos de melhoria", height=90)
                 pos_val  = c7.text_area("Pontos positivos",   height=90)
                 acao_val = st.text_input("Plano de ação / Desenvolvimento")
- 
+
                 if st.form_submit_button("💾 Salvar avaliação"):
                     ev = {
                         "id":       f"ev_{int(datetime.now().timestamp()*1000)}",
@@ -1052,23 +1091,23 @@ def pagina_avaliacoes(user, readonly=False):
                     save_avaliacoes(evs)
                     st.success(f"✅ Avaliação de {op_nome} — {mes_sel} / {ciclo_s} salva!")
                     st.rerun()
- 
+
     st.markdown("---")
     c1,c2,c3 = st.columns(3)
     op_f  = c1.selectbox("Operador",    ["Todos"]+[o["nome"] for o in ops], key="evop")
     mes_f = c2.selectbox("Mês",         ["Todos"]+sorted(set(e.get("mes","") for e in evs if e.get("mes")),reverse=True), key="evmes")
     cic_f = c3.selectbox("Ciclo",       ["Todos"]+CICLOS, key="evci")
- 
+
     lista = evs
     if op_f  != "Todos": lista = [e for e in lista if e["op_id"]==next((o["id"] for o in ops if o["nome"]==op_f),None)]
     if mes_f != "Todos": lista = [e for e in lista if e.get("mes")==mes_f]
     if cic_f != "Todos": lista = [e for e in lista if e.get("ciclo")==cic_f]
     lista = sorted(lista, key=lambda x:(x.get("mes",""),x.get("ciclo","")), reverse=True)
- 
+
     if not lista:
         st.info("Nenhuma avaliação encontrada.")
         return
- 
+
     rows = []
     for e in lista:
         op  = next((o for o in ops if o["id"]==e["op_id"]), {})
@@ -1084,12 +1123,12 @@ def pagina_avaliacoes(user, readonly=False):
             "Nota final":   f"{fn:.1f}%"          if fn is not None else "—",
             "Plano de ação": e.get("acao","—"),
         })
- 
+
     df = pd.DataFrame(rows)
     st.dataframe(df, use_container_width=True, hide_index=True)
     st.download_button("⬇️ Exportar CSV", data=df.to_csv(index=False).encode("utf-8-sig"),
                        file_name=f"leal_cx_avaliacoes_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # METAS
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1102,152 +1141,99 @@ def pagina_metas(user, readonly=False):
                         justify-content:center;font-size:18px;'>🏆</div>
             <div>
                 <h1 style='margin:0;font-size:22px;'>Metas e Bonificações</h1>
-                <p style='margin:0;font-size:12px;color:#666;'>Configure faixas, intervalos de notas e valores de bônus</p>
+                <p style='margin:0;font-size:12px;color:#444;'>Faixas configuráveis e resultado por operador</p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
     faixas = load_faixas()
-    ops = load_operadores()
-    evs = load_avaliacoes()
-    pesos = st.session_state.pesos
+    ops    = load_operadores()
+    evs    = load_avaliacoes()
+    pesos  = st.session_state.pesos
 
-    c_p, c_f = st.columns([1, 2.5])
-
+    c_p, c_f = st.columns([1,2])
     with c_p:
         st.markdown("### ⚖️ Pesos da nota final")
         if not readonly:
-            pm = st.slider("Peso Nota MP (%)", 0, 100, pesos.get("mp", 50), step=5)
-            pi = st.slider("Peso Nota interna (%)", 0, 100, pesos.get("int", 50), step=5)
-            if pm + pi != 100:
+            pm = st.slider("Peso Nota MP (%)",      0, 100, pesos.get("mp",50), step=5)
+            pi = st.slider("Peso Nota interna (%)", 0, 100, pesos.get("int",50), step=5)
+            if pm+pi != 100:
                 st.warning(f"Soma atual: {pm+pi}% (deve ser 100%)")
             else:
-                st.session_state.pesos = {"mp": pm, "int": pi}
+                st.session_state.pesos = {"mp":pm,"int":pi}
+                st.success("✓ Pesos salvos")
         else:
-            st.markdown(f"- Nota MP: **{pesos['mp']}%** \n- Nota interna: **{pesos['int']}%**")
+            st.markdown(f"- Nota MP: **{pesos['mp']}%**  \n- Nota interna: **{pesos['int']}%**")
 
     with c_f:
-        st.markdown("### 🎯 Gerenciar Faixas de Bonificação")
-        
-        if readonly:
-            # Modo apenas visualização (ex: Observador)
-            for f in sorted(faixas, key=lambda x: x["min"]):
-                cc1, cc2, cc3 = st.columns([3, 2, 2])
-                cc1.markdown(f"**{f['desc']}**")
-                cc2.markdown(f"{f['min']}% – {f['max']}%")
-                cc3.markdown(f"R$ {f['bonus']:.2f}")
-        else:
-            # Modo edição total (Comandante / Copiloto)
-            faixas_atualizadas = []
-            mudou_algo = False
-            
-            with st.form("form_editar_metas"):
-                st.write("Altere as faixas abaixo e clique em salvar:")
-                
-                # Ordena para exibir do menor para o maior
-                faixas_ordenadas = sorted(faixas, key=lambda x: x["min"])
-                
-                for idx, f in enumerate(faixas_ordenadas):
-                    fid = f["id"]
-                    st.markdown(f"**Faixa {idx+1}**")
-                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
-                    
-                    # Inputs editáveis para cada parâmetro da faixa
-                    novo_desc = col1.text_input("Descrição/Nome", value=f["desc"], key=f"desc_{fid}")
-                    novo_min = col2.number_input("Mínimo (%)", min_value=0.0, max_value=100.0, value=float(f["min"]), step=0.1, key=f"min_{fid}")
-                    novo_max = col3.number_input("Máximo (%)", min_value=0.0, max_value=100.0, value=float(f["max"]), step=0.1, key=f"max_{fid}")
-                    novo_bonus = col4.number_input("Bônus (R$)", min_value=0.0, value=float(f["bonus"]), step=10.0, key=f"bonus_{fid}")
-                    
-                    faixas_atualizadas.append({
-                        "id": fid,
-                        "desc": novo_desc,
-                        "min": novo_min,
-                        "max": novo_max,
-                        "bonus": novo_bonus
-                    })
-                    st.markdown("<hr style='margin: 0.5rem 0 !important;' />", unsafe_allow_html=True)
-                
-                # Botão de submissão do formulário de edição
-                if st.form_submit_button("💾 Salvar Alterações de Metas"):
-                    save_faixas(faixas_atualizadas)
-                    st.success("✅ Todas as faixas e valores de bonificação foram atualizados com sucesso!")
-                    st.rerun()
-            
-            # Opção de adicionar uma nova faixa extra fora do formulário se necessário
-            with st.expander("➕ Adicionar nova faixa de bônus"):
-                with st.form("nova_faixa_form"):
-                    n_desc = st.text_input("Nome da nova faixa (Ex: Faixa Platina)")
-                    nc1, nc2, nc3 = st.columns(3)
-                    n_min = nc1.number_input("Nota Mínima (%)", 0.0, 100.0, 96.0)
-                    n_max = nc2.number_input("Nota Máxima (%)", 0.0, 100.0, 100.0)
-                    n_bon = nc3.number_input("Valor do Bônus (R$)", 0.0, 5000.0, 500.0)
-                    
-                    if st.form_submit_button("🚀 Criar Faixa"):
-                        if n_desc.strip():
-                            nova_f = {
-                                "id": f"f_{int(datetime.now().timestamp()*1000)}",
-                                "desc": n_desc.strip(),
-                                "min": n_min,
-                                "max": n_max,
-                                "bonus": n_bon
-                            }
-                            faixas.append(nova_f)
-                            save_faixas(faixas)
-                            st.success("Nova faixa criada!")
-                            st.rerun()
-                        else:
-                            st.error("Digite uma descrição para a faixa.")
+        st.markdown("### 🎯 Faixas de bonificação")
+        for f in sorted(faixas, key=lambda x:x["min"]):
+            cc1,cc2,cc3,cc4 = st.columns([3,2,2,1])
+            cc1.markdown(f"**{f['desc']}**")
+            cc2.markdown(f"{f['min']}% – {f['max']}%")
+            cc3.markdown(f"R$ {f['bonus']:.2f}")
+            if not readonly and cc4.button("🗑️", key=f"delf_{f['id']}"):
+                faixas = [x for x in faixas if x["id"]!=f["id"]]
+                save_faixas(faixas)
+                st.rerun()
+        if not readonly:
+            st.markdown("---")
+            with st.form("ff"):
+                c1,c2,c3,c4 = st.columns(4)
+                fd = c1.text_input("Descrição")
+                fn = c2.number_input("Mín (%)", 0.0, 100.0, step=0.1)
+                fm = c3.number_input("Máx (%)", 0.0, 100.0, step=0.1)
+                fb = c4.number_input("Bônus R$", 0.0, step=0.01)
+                if st.form_submit_button("➕ Adicionar faixa"):
+                    if not fd.strip(): st.error("Informe a descrição.")
+                    elif fn>fm:        st.error("Mínimo maior que máximo.")
+                    else:
+                        faixas.append({"id":f"f_{int(datetime.now().timestamp()*1000)}","desc":fd,"min":fn,"max":fm,"bonus":fb})
+                        save_faixas(faixas)
+                        st.rerun()
 
-    # ─── Seção inferior: Resultados do mês de referência baseado nas novas regras ───
     st.markdown("---")
-    st.markdown("### 📊 Simulador de Resultados por Operador")
-    if evs:
-        meses_disp = sorted(set(e.get("mes", "") for e in evs if e.get("mes")), reverse=True)
-        mes_sel = st.selectbox("Selecione o mês para calcular os bônus:", meses_disp, key="metas_mes")
-        
-        ativos = [o for o in ops if o.get("status") == "Ativo"]
-        rows = []
-        total_b = 0.0
-        
-        for op in ativos:
-            op_evs = [e for e in evs if e["op_id"] == op["id"] and e.get("mes") == mes_sel]
-            if not op_evs:
-                continue
-            
-            mp_med = avg_of([e.get("mp") for e in op_evs])
-            iv_med = avg_of([eval_int(e) for e in op_evs])
-            
-            # Monta estrutura temporária para calcular a média final ponderada do período
-            fake_eval = {}
-            if mp_med is not None: fake_eval["mp"] = mp_med
-            if iv_med is not None: fake_eval["nota_int"] = iv_med
-                
-            fn_med = eval_final(fake_eval, pesos)
-            fx = get_faixa(fn_med, faixas_atualizadas if 'faixas_atualizadas' in locals() else faixas)
-            
-            bv = fx["bonus"] if fx else 0.0
-            total_b += bv
-            sit = "🎯 Meta Atingida" if bv > 0 else "❌ Fora da Meta"
-            
-            rows.append({
-                "Operador": op["nome"],
-                "Nota MP": f"{mp_med:.1f}" if mp_med else "—",
-                "Nota int.": f"{iv_med:.1f}" if iv_med else "—",
-                "Nota final": f"{fn_med:.1f}%" if fn_med else "—",
-                "Faixa": fx["desc"] if fx else "—",
-                "Bônus": f"R$ {bv:.2f}",
-                "Situação": sit,
-            })
-            
-        if rows:
-            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-            st.markdown(f"<p style='color:#C9A84C;font-weight:600;font-size:16px;background:#111;padding:12px;border-radius:8px;border:1px solid #222;'>💰 Total de bonificação estimado para a equipe em {mes_sel}: R$ {total_b:.2f}</p>", unsafe_allow_html=True)
-        else:
-            st.info("Nenhuma avaliação registrada para o mês selecionado.")
+    st.markdown("### 📊 Resultado por mês")
+    meses = sorted(set(e.get("mes","") for e in evs if e.get("mes")), reverse=True)
+    if not meses:
+        st.info("Nenhuma avaliação registrada ainda.")
+        return
+    col_m,_ = st.columns([2,4])
+    mes_sel  = col_m.selectbox("Mês", meses, key="metas_mes")
+
+    ativos = [o for o in ops if o.get("status")=="Ativo"]
+    rows=[]; total_b=0
+    for op in ativos:
+        op_evs = [e for e in evs if e["op_id"]==op["id"] and e.get("mes")==mes_sel]
+        fn_vals = [eval_final(e,pesos) for e in op_evs if eval_final(e,pesos) is not None]
+        mp_vals = [float(e["mp"]) for e in op_evs if e.get("mp") not in (None,"")]
+        iv_vals = [eval_int(e) for e in op_evs if eval_int(e) is not None]
+        fn_med  = round(sum(fn_vals)/len(fn_vals),1) if fn_vals else None
+        mp_med  = round(sum(mp_vals)/len(mp_vals),1) if mp_vals else None
+        iv_med  = round(sum(iv_vals)/len(iv_vals),1) if iv_vals else None
+        fx = get_faixa(fn_med, faixas)
+        bv = fx["bonus"] if fx else 0
+        total_b += bv
+        sit = "✅ Meta atingida" if fn_med and fn_med>=80 else ("⚠️ Abaixo" if fn_med is not None else "📭 Sem avaliação")
+        rows.append({
+            "Operador":  op["nome"],
+            "Nota MP":   f"{mp_med:.1f}" if mp_med else "—",
+            "Nota int.": f"{iv_med:.1f}" if iv_med else "—",
+            "Nota final":f"{fn_med:.1f}%" if fn_med else "—",
+            "Faixa":     fx["desc"] if fx else "—",
+            "Bônus":     f"R$ {bv:.2f}",
+            "Situação":  sit,
+        })
+    if rows:
+        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        st.markdown(f"<p style='color:#4CC9F0;font-weight:600;font-size:15px;'>💰 Total bonificação da equipe ({mes_sel}): R$ {total_b:.2f}</p>", unsafe_allow_html=True)
+        csv = pd.DataFrame(rows).to_csv(index=False).encode("utf-8-sig")
+        st.download_button("⬇️ Exportar CSV metas", data=csv,
+                           file_name=f"leal_cx_metas_{mes_sel}_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
     else:
-        st.info("Nenhuma avaliação cadastrada no sistema.")
- 
+        st.info("Nenhuma avaliação para este mês.")
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # EVOLUÇÃO
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1265,28 +1251,27 @@ def pagina_evolucao(user, readonly=False):
         </div>
     </div>
     """, unsafe_allow_html=True)
- 
+
     ops   = load_operadores()
     evs   = load_avaliacoes()
     pesos = st.session_state.pesos
- 
+
     if not evs:
         st.info("Registre avaliações para ver a evolução.")
         return
- 
+
     meses = sorted(set(e.get("mes","") for e in evs if e.get("mes")))
- 
+
     c1,c2 = st.columns(2)
     opcao   = c1.selectbox("Visualizar", ["Média da equipe"]+[o["nome"] for o in ops])
     metrica = c2.selectbox("Métrica", ["Nota final (%)","Nota MP","Nota interna"])
- 
+
     def get_val(e, met):
         if met=="Nota final (%)": return eval_final(e,pesos)
         if met=="Nota MP":        return float(e["mp"]) if e.get("mp") not in (None,"") else None
         if met=="Nota interna":   return eval_int(e)
- 
+
     st.markdown("---")
-    # Gráfico por mês (fechamento)
     data_m = {}
     for mes in meses:
         m_evs = [e for e in evs if e.get("mes")==mes]
@@ -1295,13 +1280,12 @@ def pagina_evolucao(user, readonly=False):
             m_evs = [e for e in m_evs if op and e["op_id"]==op["id"]]
         vals = [get_val(e,metrica) for e in m_evs if get_val(e,metrica) is not None]
         data_m[mes] = round(sum(vals)/len(vals),1) if vals else None
- 
+
     df_m = pd.DataFrame({"Mês":list(data_m.keys()), metrica:list(data_m.values())}).dropna()
     if not df_m.empty:
         st.markdown(f"### 🌌 {opcao} — {metrica} por mês")
         st.line_chart(df_m.set_index("Mês"), color="#4CC9F0")
- 
-    # Comparativo entre operadores
+
     st.markdown("---")
     mes_rec = meses[-1] if meses else None
     if mes_rec:
@@ -1314,7 +1298,7 @@ def pagina_evolucao(user, readonly=False):
         if comp:
             df_c = pd.DataFrame(comp).sort_values(metrica, ascending=False)
             st.bar_chart(df_c.set_index("Operador"), color="#4CC9F0")
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # CONFIGURAÇÕES (Comandante)
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1332,11 +1316,10 @@ def pagina_configuracoes(user):
         </div>
     </div>
     """, unsafe_allow_html=True)
- 
+
     st.markdown("### 👤 Usuários do sistema")
     usuarios = load_usuarios()
- 
-    # Editar nome e senha de qualquer usuário de gestão
+
     st.markdown("**Editar usuários de gestão**")
     for i, u in enumerate(usuarios):
         if u.get("nivel") == "tripulacao": continue
@@ -1346,7 +1329,6 @@ def pagina_configuracoes(user):
                 novo_login = st.text_input("Login", value=u.get("login",""), key=f"nl_{i}")
                 nova_senha = st.text_input("Nova senha (deixe vazio para manter)", type="password", key=f"ns_{i}")
                 if st.form_submit_button("💾 Salvar alterações"):
-                    # Verificar login duplicado
                     outros_logins = [x["login"] for x in usuarios if x["login"]!=u["login"]]
                     if novo_login.strip() in outros_logins:
                         st.error("Este login já está em uso.")
@@ -1361,14 +1343,13 @@ def pagina_configuracoes(user):
                                         break
                                     uu["senha"] = nova_senha.strip()
                         save_usuarios(usuarios)
-                        # Atualizar sessão se for o próprio usuário
                         if u["login"]==user["login"] or novo_login.strip()==user["login"]:
                             updated = next((x for x in load_usuarios() if x["login"]==novo_login.strip()),None)
                             if updated:
                                 st.session_state.user = updated
                         st.success("✅ Usuário atualizado!")
                         st.rerun()
- 
+
     st.markdown("---")
     st.markdown("**Todos os usuários**")
     for u in usuarios:
@@ -1380,7 +1361,7 @@ def pagina_configuracoes(user):
             usuarios = [x for x in usuarios if x["login"]!=u["login"]]
             save_usuarios(usuarios)
             st.rerun()
- 
+
     st.markdown("---")
     st.markdown("### 💾 Backup")
     backup = {
@@ -1394,7 +1375,7 @@ def pagina_configuracoes(user):
                        data=json.dumps(backup, ensure_ascii=False, indent=2).encode("utf-8"),
                        file_name=f"leal_cx_backup_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
                        mime="application/json")
- 
+
     st.markdown("### 📥 Importar backup")
     arq = st.file_uploader("Arquivo .json", type=["json"])
     if arq:
@@ -1409,7 +1390,7 @@ def pagina_configuracoes(user):
                 st.rerun()
         except Exception as ex:
             st.error(f"Erro: {ex}")
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # PORTAL DA TRIPULAÇÃO
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1418,12 +1399,12 @@ def portal_tripulacao(user):
     evs    = load_avaliacoes()
     faixas = load_faixas()
     pesos  = st.session_state.pesos
- 
+
     op = next((o for o in ops if o["id"]==user.get("op_id")), None)
     if not op:
         st.error("Operador não encontrado. Contate o administrador.")
         return
- 
+
     st.markdown(f"""
     <div style='padding:1.5rem 0 1rem;'>
         <div style='display:flex;align-items:center;gap:16px;margin-bottom:4px;'>
@@ -1443,27 +1424,27 @@ def portal_tripulacao(user):
     </div>
     <hr/>
     """, unsafe_allow_html=True)
- 
+
     op_evs = sorted([e for e in evs if e["op_id"]==op["id"]],
                     key=lambda x:(x.get("mes",""),x.get("ciclo","")), reverse=True)
- 
+
     if not op_evs:
         st.info("Você ainda não possui avaliações registradas.")
         return
- 
+
     last = op_evs[0]
     fn   = eval_final(last, pesos)
     fx   = get_faixa(fn, faixas)
     iv   = eval_int(last)
     mp_v = float(last["mp"]) if last.get("mp") not in (None,"") else None
- 
+
     st.markdown(f"<p style='color:#666;font-size:12px;font-weight:500;letter-spacing:0.06em;margin-bottom:0.8rem;'>ÚLTIMA AVALIAÇÃO — {last.get('mes','—')} / {last.get('ciclo','—')}</p>", unsafe_allow_html=True)
- 
+
     c1,c2,c3 = st.columns(3)
     c1.metric("Nota MP",       f"{mp_v:.1f}" if mp_v is not None else "—")
     c2.metric("Nota interna",  f"{iv:.1f}"   if iv  is not None else "—")
     c3.metric("Nota final",    f"{fn:.1f}%"  if fn  is not None else "—")
- 
+
     if fn is not None:
         pct = min(100, max(0, fn))
         cor = nota_cor(fn)
@@ -1489,7 +1470,7 @@ def portal_tripulacao(user):
             st.markdown(f"<p style='color:#C9A84C;font-size:13px;margin-top:8px;'>✦ Faltam <b>{falta} pontos</b> para <b>{proxima['desc']}</b> → R$ {proxima['bonus']:.2f}</p>", unsafe_allow_html=True)
         else:
             st.markdown("<p style='color:#E8CC7A;font-weight:600;'>🏆 Você atingiu a faixa máxima!</p>", unsafe_allow_html=True)
- 
+
     if last.get("pos") or last.get("feed") or last.get("acao"):
         st.markdown("---")
         st.markdown("<p style='color:#666;font-size:12px;font-weight:600;letter-spacing:0.06em;margin-bottom:0.8rem;'>FEEDBACK DA AVALIAÇÃO</p>", unsafe_allow_html=True)
@@ -1499,10 +1480,10 @@ def portal_tripulacao(user):
             st.markdown(f"<div style='background:#0D0D0D;border:1px solid #1A1A1A;border-left:3px solid #7A5A3A;border-radius:8px;padding:16px;margin-bottom:10px;'><p style='color:#C9841A;font-size:11px;font-weight:600;letter-spacing:0.06em;margin-bottom:8px;'>⚠ PONTOS DE MELHORIA</p><p style='color:#C0C0C0;font-size:14px;line-height:1.6;margin:0;'>{last['feed']}</p></div>", unsafe_allow_html=True)
         if last.get("acao"):
             st.markdown(f"<div style='background:#0D0D0D;border:1px solid #1A1A1A;border-left:3px solid #C9A84C;border-radius:8px;padding:16px;'><p style='color:#C9A84C;font-size:11px;font-weight:600;letter-spacing:0.06em;margin-bottom:8px;'>→ PLANO DE AÇÃO</p><p style='color:#C0C0C0;font-size:14px;line-height:1.6;margin:0;'>{last['acao']}</p></div>", unsafe_allow_html=True)
- 
+
     st.markdown("---")
     st.markdown("<p style='color:#666;font-size:12px;font-weight:600;letter-spacing:0.06em;margin-bottom:0.8rem;'>EVOLUÇÃO — NOTA FINAL POR MÊS E CICLO</p>", unsafe_allow_html=True)
- 
+
     chart_rows = []
     for e in sorted(op_evs, key=lambda x:(x.get("mes",""),x.get("ciclo",""))):
         fn_e = eval_final(e, pesos)
@@ -1513,12 +1494,12 @@ def portal_tripulacao(user):
                 "Nota MP": float(e["mp"]) if e.get("mp") not in (None,"") else None,
                 "Nota interna": eval_int(e),
             })
- 
+
     if chart_rows:
         df_chart = pd.DataFrame(chart_rows).set_index("Período")
         cols_disp = [c for c in ["Nota final (%)","Nota MP","Nota interna"] if df_chart[c].notna().any()]
         st.line_chart(df_chart[cols_disp])
- 
+
         st.markdown("<p style='color:#666;font-size:12px;font-weight:600;letter-spacing:0.06em;margin-top:1.5rem;margin-bottom:0.8rem;'>HISTÓRICO COMPLETO</p>", unsafe_allow_html=True)
         hist = []
         for e in op_evs:
@@ -1536,7 +1517,7 @@ def portal_tripulacao(user):
         st.dataframe(pd.DataFrame(hist), use_container_width=True, hide_index=True)
     else:
         st.info("Dados insuficientes para o gráfico.")
- 
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # ROTEADOR PRINCIPAL
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1545,10 +1526,9 @@ if not st.session_state.logged_in:
 else:
     user  = st.session_state.user
     nivel = user["nivel"]
- 
-    # Injetar estrelas animadas para usuários logados
+
     st.markdown(STARS_JS, unsafe_allow_html=True)
- 
+
     if nivel == "tripulacao":
         render_sidebar(user)
         portal_tripulacao(user)
@@ -1556,7 +1536,7 @@ else:
         render_sidebar(user)
         readonly = (nivel == "observador")
         page = st.session_state.get("page","Dashboard")
- 
+
         if page == "Dashboard":       pagina_dashboard(user, readonly)
         elif page == "Operadores":    pagina_operadores(user, readonly)
         elif page == "Avaliações":    pagina_avaliacoes(user, readonly)
