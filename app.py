@@ -772,7 +772,7 @@ def pagina_dashboard(user, readonly=False):
                         justify-content:center;font-size:18px;'>🏠</div>
             <div>
                 <h1 style='margin:0;font-size:22px;'>Dashboard Geral</h1>
-                <p style='margin:0;font-size:12px;color:#666;'>Visão geral de qualidade e metas</p>
+                <p style='margin:0;font-size:12px;color:#444;'>Visão geral de qualidade e metas</p>
             </div>
         </div>
     </div>
@@ -784,115 +784,114 @@ def pagina_dashboard(user, readonly=False):
     pesos = st.session_state.pesos
 
     ativos = [o for o in ops if o.get("status") == "Ativo"]
-    ops    = load_operadores()
-    evs    = load_avaliacoes()
-    faixas = load_faixas()
-    pesos  = st.session_state.pesos
-    ativos = [o for o in ops if o.get("status") == "Ativo"]
- 
-    all_mps  = [float(e["mp"])  for e in evs if e.get("mp")  not in (None,"")]
-    all_ivs  = [eval_int(e)     for e in evs]
-    all_fins = [eval_final(e,pesos) for e in evs]
-    all_fins = [v for v in all_fins if v is not None]
-    all_ivs  = [v for v in all_ivs  if v is not None]
- 
-    avg_mp  = round(sum(all_mps) /len(all_mps), 1)  if all_mps  else None
-    avg_iv  = round(sum(all_ivs) /len(all_ivs), 1)  if all_ivs  else None
-    avg_fin = round(sum(all_fins)/len(all_fins), 1)  if all_fins else None
- 
-    total_bonus = 0
-    for op in ativos:
-        op_evs = sorted([e for e in evs if e["op_id"]==op["id"]], key=lambda x:(x.get("mes",""),x.get("ciclo","")), reverse=True)
-        if op_evs:
-            fx = get_faixa(eval_final(op_evs[0], pesos), faixas)
-            total_bonus += fx["bonus"] if fx else 0
- 
-    abaixo_80 = sum(
-        1 for op in ativos
-        if (lambda ev: ev is not None and eval_final(ev,pesos) is not None and eval_final(ev,pesos)<80)(
-            next((e for e in sorted([e for e in evs if e["op_id"]==op["id"]], key=lambda x:(x.get("mes",""),x.get("ciclo","")),reverse=True)),None)
-        )
-    )
- 
-    c1,c2,c3,c4,c5,c6 = st.columns(6)
-    c1.metric("👥 Ativos",          len(ativos), f"de {len(ops)}")
-    c2.metric("📋 Avaliações",       len(evs))
-    c3.metric("🎯 Média MP",         f"{avg_mp:.1f}"  if avg_mp  is not None else "—")
-    c4.metric("📝 Média interna",    f"{avg_iv:.1f}"  if avg_iv  is not None else "—")
+
+    # 1. KPIs Gerais
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    c1.metric("👥 Op. Ativos", len(ativos))
+    c2.metric("📋 Avaliações", len(evs))
+
+    avg_mp = avg_of([e.get("mp") for e in evs])
+    avg_iv = avg_of([eval_int(e) for e in evs])
+    avg_fin = avg_of([eval_final(e, pesos) for e in evs])
+
+    total_bonus = 0.0
+    for e in evs:
+        f_v = eval_final(e, pesos)
+        fx = get_faixa(f_v, faixas)
+        if fx:
+            total_bonus += fx["bonus"]
+
+    c3.metric("🎯 Média MP", f"{avg_mp:.1f}" if avg_mp is not None else "—")
+    c4.metric("📝 Média interna", f"{avg_iv:.1f}" if avg_iv is not None else "—")
     c5.metric("🏆 Nota final média", f"{avg_fin:.1f}%" if avg_fin is not None else "—")
-    c6.metric("💰 Total bonificação",f"R$ {total_bonus:.2f}")
- 
+    c6.metric("💰 Total bonificação", f"R$ {total_bonus:.2f}")
+
     st.markdown("---")
-    meses_disp = sorted(set(e.get("mes","") for e in evs if e.get("mes")), reverse=True)
-    col_s, _ = st.columns([2,4])
-    mes_sel = col_s.selectbox("📅 Filtrar mês", ["Todos"]+meses_disp, key="dash_mes")
- 
-    st.markdown("### 🧑‍🚀 Resumo da equipe")
-    rows = []
-    for op in ativos:
-        op_evs = [e for e in evs if e["op_id"]==op["id"]]
-        if mes_sel != "Todos":
-            op_evs = [e for e in op_evs if e.get("mes")==mes_sel]
-        op_evs = sorted(op_evs, key=lambda x: x.get("ciclo",""), reverse=True)
-        last = op_evs[0] if op_evs else None
-        mp_v = float(last["mp"]) if last and last.get("mp") not in (None,"") else None
-        iv_v = eval_int(last)    if last else None
-        fn_v = eval_final(last, pesos) if last else None
-        fx   = get_faixa(fn_v, faixas)
-        rows.append({
-            "Operador":      op["nome"],
-            "Tempo de casa": tenure(op.get("adm")),
-            "Nota MP":       f"{mp_v:.1f}" if mp_v is not None else "—",
-            "Nota interna":  f"{iv_v:.1f}" if iv_v is not None else "—",
-            "Nota final":    f"{fn_v:.1f}%" if fn_v is not None else "—",
-            "Faixa":         fx["desc"] if fx else "—",
-            "Bônus":         f"R$ {fx['bonus']:.2f}" if fx else "R$ 0,00",
-        })
-    if rows:
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-    else:
-        st.info("Cadastre operadores e avaliações para ver o resumo.")
- 
-    if mes_sel != "Todos":
-        st.markdown(f"### 📊 Médias por ciclo — {mes_sel}")
-        ciclo_data = []
-        for ciclo in CICLOS:
-            cevs = [e for e in evs if e.get("mes")==mes_sel and e.get("ciclo")==ciclo]
-            if not cevs: continue
-            fps = [eval_final(e,pesos) for e in cevs if eval_final(e,pesos) is not None]
-            mps = [float(e["mp"]) for e in cevs if e.get("mp") not in (None,"")]
-            ciclo_data.append({
-                "Ciclo": ciclo,
-                "Média MP": round(sum(mps)/len(mps),1) if mps else None,
-                "Nota final": round(sum(fps)/len(fps),1) if fps else None,
-                "Qtd avaliados": len(cevs),
-            })
-        if ciclo_data:
-            df_c = pd.DataFrame(ciclo_data)
-            st.dataframe(df_c, use_container_width=True, hide_index=True)
-            df_chart = df_c.dropna(subset=["Nota final"])
-            if not df_chart.empty:
-                st.line_chart(df_chart.set_index("Ciclo")[["Nota final"]], color="#4CC9F0")
- 
-    st.markdown("---")
-    st.markdown("### 🏆 Situação de metas — mês atual")
-    mes_rec = meses_disp[0] if meses_disp else None
-    if mes_rec:
+
+    # Filtro de Mês
+    meses_disp = sorted(set(e.get("mes", "") for e in evs if e.get("mes")), reverse=True)
+    col_s, _ = st.columns([2, 4])
+    mes_sel = col_s.selectbox("📅 Filtrar mês", ["Todos"] + meses_disp, key="dash_mes")
+
+    # 2. Layout principal dividindo a tabela de ranking e a barra lateral de metas
+    col_tabela, col_ranking_lateral = st.columns([2.2, 1])
+
+    with col_tabela:
+        st.markdown("### 🧑‍🚀 Resumo da equipe")
+        rows = []
         for op in ativos:
-            op_evs = [e for e in evs if e["op_id"]==op["id"] and e.get("mes")==mes_rec]
-            if not op_evs: continue
-            fn_vals = [eval_final(e,pesos) for e in op_evs if eval_final(e,pesos) is not None]
-            fn_med  = round(sum(fn_vals)/len(fn_vals),1) if fn_vals else None
+            op_evs = [e for e in evs if e["op_id"] == op["id"]]
+            if mes_sel != "Todos":
+                op_evs = [e for e in op_evs if e.get("mes") == mes_sel]
+            op_evs = sorted(op_evs, key=lambda x: x.get("ciclo", ""), reverse=True)
+            
+            last = op_evs[0] if op_evs else None
+            mp_v = float(last["mp"]) if last and last.get("mp") not in (None, "") else None
+            iv_v = eval_int(last) if last else None
+            fn_v = eval_final(last, pesos) if last else None
+            fx = get_faixa(fn_v, faixas)
+
+            rows.append({
+                "Operador": op["nome"],
+                "Tempo de casa": tenure(op.get("adm")),
+                "Nota MP": f"{mp_v:.1f}" if mp_v is not None else "—",
+                "Nota interna": f"{iv_v:.1f}" if iv_v is not None else "—",
+                "Nota final": f"{fn_v:.1f}%" if fn_v is not None else "—",
+                "Faixa": fx["desc"] if fx else "—",
+                "Bônus": f"R$ {fx['bonus']:.2f}" if fx else "R$ 0,00",
+            })
+
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+        else:
+            st.info("Cadastre operadores e avaliações para ver o resumo.")
+
+        # Médias por Ciclo
+        if mes_sel != "Todos":
+            st.markdown(f"### 📊 Médias por ciclo — {mes_sel}")
+            ciclo_data = []
+            for ciclo in CICLOS:
+                cevs = [e for e in evs if e.get("mes") == mes_sel and e.get("ciclo") == ciclo]
+                if not cevs:
+                    continue
+                fps = [eval_final(e, pesos) for e in cevs if eval_final(e, pesos) is not None]
+                if fps:
+                    ciclo_data.append({"Ciclo": ciclo, "Média Nota Final": f"{sum(fps)/len(fps):.1f}%"})
+            if ciclo_data:
+                st.dataframe(pd.DataFrame(ciclo_data), use_container_width=True, hide_index=True)
+
+    with col_ranking_lateral:
+        st.markdown("### 🏆 Ranking do Período")
+        
+        # Filtra e calcula médias para o ranking lateral de forma limpa e sem HTML quebrado
+        for op in ativos:
+            op_evs = [e for e in evs if e["op_id"] == op["id"]]
+            if mes_sel != "Todos":
+                op_evs = [e for e in op_evs if e.get("mes") == mes_sel]
+            
+            if not op_evs:
+                continue
+                
+            fn_med = avg_of([eval_final(e, pesos) for e in op_evs])
             fx = get_faixa(fn_med, faixas)
-            cor = nota_cor(fn_med)
-            st.markdown(
-                f"<div style='display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #1F3A52;'>"
-                f"<span style='flex:1;color:#E2E8F0;font-size:14px;'>{op['nome']}</span>"
-                f"{'<span style=\"font-weight:700;color:'+cor+';\">'+str(fn_med)+'%</span>' if fn_med else '<span style=\"color:#555\">sem avaliação</span>'}"
-                f"{badge_faixa(fx)}</div>",
-                unsafe_allow_html=True
-            )
- 
+            
+            # Bloco corrigido usando o padrão nativo e seguro do Streamlit
+            if fn_med:
+                cor_nota = nota_cor(fn_med)
+                # Formatação limpa do container de cada operador com tratamento correto de string e HTML
+                st.markdown(
+                    f"<div style='padding:10px; background:#0D0D0D; border:1px solid #1A1A1A; "
+                    f"border-radius:8px; margin-bottom:8px; display:flex; justify-content:between; align-items:center; gap:8px;'>"
+                    f"  <div style='flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;'>"
+                    f"      <span style='color:#E2E8F0; font-size:13px; font-weight:500;'>{op['nome']}</span>"
+                    f"  </div>"
+                    f"  <div style='display:flex; align-items:center; gap:8px; flex-shrink:0;'> "
+                    f"      <span style='font-weight:700; color:{cor_nota}; font-size:13px;'>{fn_med:.1f}%</span>"
+                    f"      {badge_faixa(fx)}"
+                    f"  </div>"
+                    f"</div>", 
+                    unsafe_allow_html=True
+                )
 # ═══════════════════════════════════════════════════════════════════════════════
 # OPERADORES
 # ═══════════════════════════════════════════════════════════════════════════════
