@@ -771,14 +771,19 @@ def pagina_dashboard(user, readonly=False):
                         border:1px solid #1A1A1A;display:flex;align-items:center;
                         justify-content:center;font-size:18px;'>🏠</div>
             <div>
-                <h1 style='margin:0;font-size:22px;'>Dashboard</h1>
-                <p style='margin:0;font-size:12px;color:#444;'></p>
+                <h1 style='margin:0;font-size:22px;'>Dashboard Geral</h1>
+                <p style='margin:0;font-size:12px;color:#666;'>Visão geral de qualidade e metas</p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
-    st.markdown(f"<p style='color:#444444;font-size:12px;margin-top:-1rem;margin-bottom:1.5rem;'>Atualizado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}</p>", unsafe_allow_html=True)
- 
+
+    ops = load_operadores()
+    evs = load_avaliacoes()
+    faixas = load_faixas()
+    pesos = st.session_state.pesos
+
+    ativos = [o for o in ops if o.get("status") == "Ativo"]
     ops    = load_operadores()
     evs    = load_avaliacoes()
     faixas = load_faixas()
@@ -1098,98 +1103,151 @@ def pagina_metas(user, readonly=False):
                         justify-content:center;font-size:18px;'>🏆</div>
             <div>
                 <h1 style='margin:0;font-size:22px;'>Metas e Bonificações</h1>
-                <p style='margin:0;font-size:12px;color:#444;'>Faixas configuráveis e resultado por operador</p>
+                <p style='margin:0;font-size:12px;color:#666;'>Configure faixas, intervalos de notas e valores de bônus</p>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
- 
+
     faixas = load_faixas()
-    ops    = load_operadores()
-    evs    = load_avaliacoes()
-    pesos  = st.session_state.pesos
- 
-    c_p, c_f = st.columns([1,2])
+    ops = load_operadores()
+    evs = load_avaliacoes()
+    pesos = st.session_state.pesos
+
+    c_p, c_f = st.columns([1, 2.5])
+
     with c_p:
         st.markdown("### ⚖️ Pesos da nota final")
         if not readonly:
-            pm = st.slider("Peso Nota MP (%)",      0, 100, pesos.get("mp",50), step=5)
-            pi = st.slider("Peso Nota interna (%)", 0, 100, pesos.get("int",50), step=5)
-            if pm+pi != 100:
+            pm = st.slider("Peso Nota MP (%)", 0, 100, pesos.get("mp", 50), step=5)
+            pi = st.slider("Peso Nota interna (%)", 0, 100, pesos.get("int", 50), step=5)
+            if pm + pi != 100:
                 st.warning(f"Soma atual: {pm+pi}% (deve ser 100%)")
             else:
-                st.session_state.pesos = {"mp":pm,"int":pi}
-                st.success("✓ Pesos salvos")
+                st.session_state.pesos = {"mp": pm, "int": pi}
         else:
-            st.markdown(f"- Nota MP: **{pesos['mp']}%**  \n- Nota interna: **{pesos['int']}%**")
- 
+            st.markdown(f"- Nota MP: **{pesos['mp']}%** \n- Nota interna: **{pesos['int']}%**")
+
     with c_f:
-        st.markdown("### 🎯 Faixas de bonificação")
-        for f in sorted(faixas, key=lambda x:x["min"]):
-            cc1,cc2,cc3,cc4 = st.columns([3,2,2,1])
-            cc1.markdown(f"**{f['desc']}**")
-            cc2.markdown(f"{f['min']}% – {f['max']}%")
-            cc3.markdown(f"R$ {f['bonus']:.2f}")
-            if not readonly and cc4.button("🗑️", key=f"delf_{f['id']}"):
-                faixas = [x for x in faixas if x["id"]!=f["id"]]
-                save_faixas(faixas)
-                st.rerun()
-        if not readonly:
-            st.markdown("---")
-            with st.form("ff"):
-                c1,c2,c3,c4 = st.columns(4)
-                fd = c1.text_input("Descrição")
-                fn = c2.number_input("Mín (%)", 0.0, 100.0, step=0.1)
-                fm = c3.number_input("Máx (%)", 0.0, 100.0, step=0.1)
-                fb = c4.number_input("Bônus R$", 0.0, step=0.01)
-                if st.form_submit_button("➕ Adicionar faixa"):
-                    if not fd.strip(): st.error("Informe a descrição.")
-                    elif fn>fm:        st.error("Mínimo maior que máximo.")
-                    else:
-                        faixas.append({"id":f"f_{int(datetime.now().timestamp()*1000)}","desc":fd,"min":fn,"max":fm,"bonus":fb})
-                        save_faixas(faixas)
-                        st.rerun()
- 
+        st.markdown("### 🎯 Gerenciar Faixas de Bonificação")
+        
+        if readonly:
+            # Modo apenas visualização (ex: Observador)
+            for f in sorted(faixas, key=lambda x: x["min"]):
+                cc1, cc2, cc3 = st.columns([3, 2, 2])
+                cc1.markdown(f"**{f['desc']}**")
+                cc2.markdown(f"{f['min']}% – {f['max']}%")
+                cc3.markdown(f"R$ {f['bonus']:.2f}")
+        else:
+            # Modo edição total (Comandante / Copiloto)
+            faixas_atualizadas = []
+            mudou_algo = False
+            
+            with st.form("form_editar_metas"):
+                st.write("Altere as faixas abaixo e clique em salvar:")
+                
+                # Ordena para exibir do menor para o maior
+                faixas_ordenadas = sorted(faixas, key=lambda x: x["min"])
+                
+                for idx, f in enumerate(faixas_ordenadas):
+                    fid = f["id"]
+                    st.markdown(f"**Faixa {idx+1}**")
+                    col1, col2, col3, col4 = st.columns([3, 2, 2, 1])
+                    
+                    # Inputs editáveis para cada parâmetro da faixa
+                    novo_desc = col1.text_input("Descrição/Nome", value=f["desc"], key=f"desc_{fid}")
+                    novo_min = col2.number_input("Mínimo (%)", min_value=0.0, max_value=100.0, value=float(f["min"]), step=0.1, key=f"min_{fid}")
+                    novo_max = col3.number_input("Máximo (%)", min_value=0.0, max_value=100.0, value=float(f["max"]), step=0.1, key=f"max_{fid}")
+                    novo_bonus = col4.number_input("Bônus (R$)", min_value=0.0, value=float(f["bonus"]), step=10.0, key=f"bonus_{fid}")
+                    
+                    faixas_atualizadas.append({
+                        "id": fid,
+                        "desc": novo_desc,
+                        "min": novo_min,
+                        "max": novo_max,
+                        "bonus": novo_bonus
+                    })
+                    st.markdown("<hr style='margin: 0.5rem 0 !important;' />", unsafe_allow_html=True)
+                
+                # Botão de submissão do formulário de edição
+                if st.form_submit_button("💾 Salvar Alterações de Metas"):
+                    save_faixas(faixas_atualizadas)
+                    st.success("✅ Todas as faixas e valores de bonificação foram atualizados com sucesso!")
+                    st.rerun()
+            
+            # Opção de adicionar uma nova faixa extra fora do formulário se necessário
+            with st.expander("➕ Adicionar nova faixa de bônus"):
+                with st.form("nova_faixa_form"):
+                    n_desc = st.text_input("Nome da nova faixa (Ex: Faixa Platina)")
+                    nc1, nc2, nc3 = st.columns(3)
+                    n_min = nc1.number_input("Nota Mínima (%)", 0.0, 100.0, 96.0)
+                    n_max = nc2.number_input("Nota Máxima (%)", 0.0, 100.0, 100.0)
+                    n_bon = nc3.number_input("Valor do Bônus (R$)", 0.0, 5000.0, 500.0)
+                    
+                    if st.form_submit_button("🚀 Criar Faixa"):
+                        if n_desc.strip():
+                            nova_f = {
+                                "id": f"f_{int(datetime.now().timestamp()*1000)}",
+                                "desc": n_desc.strip(),
+                                "min": n_min,
+                                "max": n_max,
+                                "bonus": n_bon
+                            }
+                            faixas.append(nova_f)
+                            save_faixas(faixas)
+                            st.success("Nova faixa criada!")
+                            st.rerun()
+                        else:
+                            st.error("Digite uma descrição para a faixa.")
+
+    # ─── Seção inferior: Resultados do mês de referência baseado nas novas regras ───
     st.markdown("---")
-    st.markdown("### 📊 Resultado por mês")
-    meses = sorted(set(e.get("mes","") for e in evs if e.get("mes")), reverse=True)
-    if not meses:
-        st.info("Nenhuma avaliação registrada ainda.")
-        return
-    col_m,_ = st.columns([2,4])
-    mes_sel  = col_m.selectbox("Mês", meses, key="metas_mes")
- 
-    ativos = [o for o in ops if o.get("status")=="Ativo"]
-    rows=[]; total_b=0
-    for op in ativos:
-        op_evs = [e for e in evs if e["op_id"]==op["id"] and e.get("mes")==mes_sel]
-        fn_vals = [eval_final(e,pesos) for e in op_evs if eval_final(e,pesos) is not None]
-        mp_vals = [float(e["mp"]) for e in op_evs if e.get("mp") not in (None,"")]
-        iv_vals = [eval_int(e) for e in op_evs if eval_int(e) is not None]
-        fn_med  = round(sum(fn_vals)/len(fn_vals),1) if fn_vals else None
-        mp_med  = round(sum(mp_vals)/len(mp_vals),1) if mp_vals else None
-        iv_med  = round(sum(iv_vals)/len(iv_vals),1) if iv_vals else None
-        fx = get_faixa(fn_med, faixas)
-        bv = fx["bonus"] if fx else 0
-        total_b += bv
-        sit = "✅ Meta atingida" if fn_med and fn_med>=80 else ("⚠️ Abaixo" if fn_med is not None else "📭 Sem avaliação")
-        rows.append({
-            "Operador":  op["nome"],
-            "Nota MP":   f"{mp_med:.1f}" if mp_med else "—",
-            "Nota int.": f"{iv_med:.1f}" if iv_med else "—",
-            "Nota final":f"{fn_med:.1f}%" if fn_med else "—",
-            "Faixa":     fx["desc"] if fx else "—",
-            "Bônus":     f"R$ {bv:.2f}",
-            "Situação":  sit,
-        })
-    if rows:
-        st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
-        st.markdown(f"<p style='color:#4CC9F0;font-weight:600;font-size:15px;'>💰 Total bonificação da equipe ({mes_sel}): R$ {total_b:.2f}</p>", unsafe_allow_html=True)
-        csv = pd.DataFrame(rows).to_csv(index=False).encode("utf-8-sig")
-        st.download_button("⬇️ Exportar CSV metas", data=csv,
-                           file_name=f"leal_cx_metas_{mes_sel}_{datetime.now().strftime('%Y%m%d')}.csv", mime="text/csv")
+    st.markdown("### 📊 Simulador de Resultados por Operador")
+    if evs:
+        meses_disp = sorted(set(e.get("mes", "") for e in evs if e.get("mes")), reverse=True)
+        mes_sel = st.selectbox("Selecione o mês para calcular os bônus:", meses_disp, key="metas_mes")
+        
+        ativos = [o for o in ops if o.get("status") == "Ativo"]
+        rows = []
+        total_b = 0.0
+        
+        for op in ativos:
+            op_evs = [e for e in evs if e["op_id"] == op["id"] and e.get("mes") == mes_sel]
+            if not op_evs:
+                continue
+            
+            mp_med = avg_of([e.get("mp") for e in op_evs])
+            iv_med = avg_of([eval_int(e) for e in op_evs])
+            
+            # Monta estrutura temporária para calcular a média final ponderada do período
+            fake_eval = {}
+            if mp_med is not None: fake_eval["mp"] = mp_med
+            if iv_med is not None: fake_eval["nota_int"] = iv_med
+                
+            fn_med = eval_final(fake_eval, pesos)
+            fx = get_faixa(fn_med, faixas_atualizadas if 'faixas_atualizadas' in locals() else faixas)
+            
+            bv = fx["bonus"] if fx else 0.0
+            total_b += bv
+            sit = "🎯 Meta Atingida" if bv > 0 else "❌ Fora da Meta"
+            
+            rows.append({
+                "Operador": op["nome"],
+                "Nota MP": f"{mp_med:.1f}" if mp_med else "—",
+                "Nota int.": f"{iv_med:.1f}" if iv_med else "—",
+                "Nota final": f"{fn_med:.1f}%" if fn_med else "—",
+                "Faixa": fx["desc"] if fx else "—",
+                "Bônus": f"R$ {bv:.2f}",
+                "Situação": sit,
+            })
+            
+        if rows:
+            st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+            st.markdown(f"<p style='color:#C9A84C;font-weight:600;font-size:16px;background:#111;padding:12px;border-radius:8px;border:1px solid #222;'>💰 Total de bonificação estimado para a equipe em {mes_sel}: R$ {total_b:.2f}</p>", unsafe_allow_html=True)
+        else:
+            st.info("Nenhuma avaliação registrada para o mês selecionado.")
     else:
-        st.info("Nenhuma avaliação para este mês.")
+        st.info("Nenhuma avaliação cadastrada no sistema.")
  
 # ═══════════════════════════════════════════════════════════════════════════════
 # EVOLUÇÃO
