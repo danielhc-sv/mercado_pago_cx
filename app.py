@@ -582,13 +582,21 @@ def _use_gsheets():
         return False
 
 def _connect():
-    """Cria conexão autenticada — sem cache para evitar erros travados."""
+    """Conexão autenticada com cache de 5 min via session_state para evitar rate limit."""
+    import time
+    now = time.time()
+    cache = st.session_state.get("_gs_cache", {})
+    # Reutiliza conexão por até 5 minutos
+    if cache.get("sh") and now - cache.get("ts", 0) < 300:
+        return cache["sh"]
     creds = Credentials.from_service_account_info(
         dict(st.secrets["gcp_service_account"]), scopes=SCOPES
     )
     gc = gspread.authorize(creds)
     sid = st.secrets["gsheets"]["spreadsheet_id"]
-    return gc.open_by_key(sid)
+    sh = gc.open_by_key(sid)
+    st.session_state["_gs_cache"] = {"sh": sh, "ts": now}
+    return sh
 
 def _get_or_create_aba(sh, nome):
     """Retorna a worksheet, criando com cabeçalho se não existir."""
@@ -606,23 +614,25 @@ def _get_or_create_aba(sh, nome):
     return ws
 
 def _gs_read(nome):
-    """Lê uma aba com segurança — retorna lista de dicts ou []."""
+    """Lê uma aba com segurança — retorna lista de dicts, [] se vazia, None se erro."""
     try:
         sh = _connect()
         ws = _get_or_create_aba(sh, nome)
         rows = ws.get_all_values()
         if len(rows) < 2:
-            return []  # Só tem cabeçalho ou está vazia
+            return []  # só cabeçalho ou vazia
         headers = rows[0]
         result = []
         for row in rows[1:]:
-            # Garantir que a linha tenha colunas suficientes
             padded = row + [""] * (len(headers) - len(row))
             result.append(dict(zip(headers, padded)))
         return result
     except Exception as e:
-        st.warning(f"Erro ao ler '{nome}': {e}")
-        return None  # None = falhou (diferente de [] = vazio)
+        # Armazena erro para debug mas não polui a tela
+        if "gs_errors" not in st.session_state:
+            st.session_state.gs_errors = []
+        st.session_state.gs_errors.append(f"read:{nome}:{e}")
+        return None
 
 def _gs_write(nome, data):
     """Sobrescreve uma aba inteira com lista de dicts."""
@@ -635,8 +645,12 @@ def _gs_write(nome, data):
         for r in data:
             rows.append([str(r.get(h, "")) for h in headers])
         ws.update(rows, "A1")
+        # Limpa erros antigos se escrita OK
+        st.session_state.pop("gs_errors", None)
     except Exception as e:
-        st.warning(f"Erro ao salvar '{nome}': {e}")
+        if "gs_errors" not in st.session_state:
+            st.session_state.gs_errors = []
+        st.session_state.gs_errors.append(f"write:{nome}:{e}")
 
 def _json_read(path, default):
     if path.exists():
@@ -911,25 +925,10 @@ def render_sidebar(user):
 
             for icon, pg in pages:
                 is_active = st.session_state.page == pg
-                style = "background:#161616;border-color:#2A2A2A;color:#C9A84C;" if is_active else ""
-                st.markdown(f"""
-                <div style='margin-bottom:2px;'>
-                    <div onclick="window.parent.postMessage({{type:'streamlit:setComponentValue',value:'{pg}'}},)*"
-                         style='display:flex;align-items:center;gap:10px;padding:10px 12px;
-                                border-radius:8px;cursor:pointer;border:1px solid transparent;
-                                {style}transition:all 0.15s;font-size:13px;font-weight:{"600" if is_active else "400"};
-                                color:{"#C9A84C" if is_active else "#888888"};'>
-                        <span style='font-size:15px;'>{icon}</span>
-                        <span>{pg}</span>
-                        {"<div style='margin-left:auto;width:5px;height:5px;border-radius:50%;background:#C9A84C;'></div>" if is_active else ""}
-                    </div>
-                </div>
-                """, unsafe_allow_html=True)
-                if st.button(f"{icon} {pg}", key=f"nav_{pg}", use_container_width=True):
+                prefix = "▸ " if is_active else ""
+                if st.button(f"{icon}  {prefix}{pg}", key=f"nav_{pg}", use_container_width=True):
                     st.session_state.page = pg
                     st.rerun()
-
-            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("---")
         # Status do armazenamento
