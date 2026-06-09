@@ -1,8 +1,26 @@
+"""
+╔══════════════════════════════════════════════════════╗
+║           LEAL — CX  |  Sistema de Qualidade         ║
+║           Operação Mercado Pago                      ║
+╚══════════════════════════════════════════════════════╝
+Rodar localmente:
+    pip install streamlit pandas openpyxl
+    streamlit run app.py
+"""
+
 import streamlit as st
 import pandas as pd
 import json
 from datetime import datetime, date
 from pathlib import Path
+
+# ─── Google Sheets / Auth (graceful fallback) ─────────────────────────────────
+try:
+    import gspread
+    from google.oauth2.service_account import Credentials
+    GSHEETS_AVAILABLE = True
+except ImportError:
+    GSHEETS_AVAILABLE = False
 
 # ─── Configuração da página ───────────────────────────────────────────────────
 st.set_page_config(
@@ -45,56 +63,6 @@ html, body,
 }
 [data-testid="stSidebar"] * { color: #E8E8E8 !important; }
 [data-testid="stSidebarContent"] { padding: 0 !important; }
-
-/* ── BOTÕES DE NAVEGAÇÃO DA SIDEBAR ── */
-[data-testid="stSidebar"] .stButton > button {
-    background: transparent !important;
-    color: #888888 !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'Inter', sans-serif !important;
-    font-size: 13px !important;
-    font-weight: 400 !important;
-    padding: 10px 12px !important;
-    text-align: left !important;
-    width: 100% !important;
-    transition: all 0.15s ease !important;
-    letter-spacing: 0.01em !important;
-    margin-bottom: 2px !important;
-    box-shadow: none !important;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: #161616 !important;
-    color: #CCCCCC !important;
-    border: none !important;
-    box-shadow: none !important;
-    transform: none !important;
-}
-
-/* Botão de navegação ativo */
-[data-testid="stSidebar"] .nav-active > button,
-[data-testid="stSidebar"] .nav-active > button:hover {
-    background: #161616 !important;
-    color: #C9A84C !important;
-    border: none !important;
-    font-weight: 600 !important;
-    box-shadow: none !important;
-}
-
-/* Botão de sair */
-[data-testid="stSidebar"] .btn-sair > button {
-    background: transparent !important;
-    color: #555555 !important;
-    border: 1px solid #1A1A1A !important;
-    border-radius: 8px !important;
-    font-size: 12px !important;
-    margin-top: 4px !important;
-}
-[data-testid="stSidebar"] .btn-sair > button:hover {
-    color: #E8E8E8 !important;
-    border-color: #333333 !important;
-    background: #111111 !important;
-}
 
 /* ── MÉTRICAS ── */
 [data-testid="stMetric"] {
@@ -162,9 +130,8 @@ label, [data-testid="stWidgetLabel"],
     margin-bottom: 4px !important;
 }
 
-/* ── BOTÕES (geral, fora da sidebar) ── */
-.main .stButton > button,
-[data-testid="stMain"] .stButton > button {
+/* ── BOTÕES ── */
+.stButton > button {
     background: #111111 !important;
     color: #E8E8E8 !important;
     border: 1px solid #2A2A2A !important;
@@ -176,18 +143,14 @@ label, [data-testid="stWidgetLabel"],
     transition: all 0.2s ease !important;
     letter-spacing: 0.02em !important;
 }
-.main .stButton > button:hover,
-[data-testid="stMain"] .stButton > button:hover {
+.stButton > button:hover {
     background: #1A1A1A !important;
     border-color: #C9A84C !important;
     color: #C9A84C !important;
     box-shadow: 0 0 16px rgba(201,168,76,0.15) !important;
     transform: translateY(-1px) !important;
 }
-.main .stButton > button:active,
-[data-testid="stMain"] .stButton > button:active {
-    transform: translateY(0) !important;
-}
+.stButton > button:active { transform: translateY(0) !important; }
 
 /* ── SELECTBOX ── */
 [data-baseweb="select"] > div {
@@ -568,52 +531,176 @@ FAIXAS_FILE = DATA_DIR / "faixas.json"
 USERS_FILE  = DATA_DIR / "usuarios.json"
 
 NIVEIS = {
-    "comandante": "Comandante 🌌",
-    "copiloto":   "Copiloto 🚀",
-    "observador": "Observador Estelar 🔭",
+    "comandante": "Comandante \U0001f30c",
+    "copiloto":   "Copiloto \U0001f680",
+    "observador": "Observador Estelar \U0001f52d",
     "tripulacao": "Tripulação ⭐",
 }
 
 MESES_LABEL = [f"Mês {i:02d}" for i in range(1, 13)]
 CICLOS      = ["Ciclo 1", "Ciclo 2", "Ciclo 3", "Ciclo 4", "Ciclo 5"]
 
-# Cargos simplificados
 CARGOS_GESTAO  = ["Gerente de Qualidade", "Coordenador(a)", "Supervisor(a)", "Analista de Qualidade"]
 CARGOS_OP      = ["Operador(a)"]
 
-# ─── Persistência JSON ────────────────────────────────────────────────────────
-def load_json(path, default):
+ABAS = ["operadores", "avaliacoes", "faixas", "usuarios"]
+
+DEFAULT_FAIXAS = [
+    {"id":"f1","desc":"Abaixo da meta","min":0,  "max":79.9,"bonus":0},
+    {"id":"f2","desc":"Faixa Bronze",  "min":80, "max":84.9,"bonus":75},
+    {"id":"f3","desc":"Faixa Prata",   "min":85, "max":89.9,"bonus":150},
+    {"id":"f4","desc":"Faixa Ouro",    "min":90, "max":94.9,"bonus":250},
+    {"id":"f5","desc":"Faixa Diamante","min":95, "max":100, "bonus":400},
+]
+DEFAULT_USUARIOS = [
+    {"login":"comandante","senha":"leal2024","nivel":"comandante","nome":"Gerente de Qualidade","op_id":""},
+    {"login":"copiloto",  "senha":"leal2024","nivel":"copiloto",  "nome":"Coordenadora","op_id":""},
+    {"login":"observador","senha":"leal2024","nivel":"observador","nome":"Gerente","op_id":""},
+]
+
+# ─── Camada de persistência: Google Sheets + fallback JSON ───────────────────
+
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
+
+def _use_gsheets():
+    if not GSHEETS_AVAILABLE:
+        return False
+    try:
+        return "gcp_service_account" in st.secrets and "gsheets" in st.secrets
+    except Exception:
+        return False
+
+@st.cache_resource(show_spinner=False)
+def _get_gsheet():
+    creds = Credentials.from_service_account_info(
+        dict(st.secrets["gcp_service_account"]), scopes=SCOPES
+    )
+    gc = gspread.authorize(creds)
+    sid = st.secrets["gsheets"]["spreadsheet_id"]
+    sh = gc.open_by_key(sid)
+    existing = [ws.title for ws in sh.worksheets()]
+    for aba in ABAS:
+        if aba not in existing:
+            sh.add_worksheet(title=aba, rows=500, cols=30)
+    return sh
+
+def _aba(nome):
+    return _get_gsheet().worksheet(nome)
+
+def _gs_read(nome):
+    try:
+        ws = _aba(nome)
+        rows = ws.get_all_records(default_blank="")
+        return rows
+    except Exception as e:
+        st.warning(f"Erro ao ler '{nome}' do Google Sheets: {e}")
+        return []
+
+def _gs_write(nome, data):
+    try:
+        ws = _aba(nome)
+        ws.clear()
+        if not data:
+            return
+        headers = list(data[0].keys())
+        rows = [headers] + [[str(r.get(h, "")) for h in headers] for r in data]
+        ws.update(rows, "A1")
+    except Exception as e:
+        st.warning(f"Erro ao salvar '{nome}' no Google Sheets: {e}")
+
+def _json_read(path, default):
     if path.exists():
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
     return default
 
-def save_json(path, data):
+def _json_write(path, data):
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def load_operadores(): return load_json(OPS_FILE, [])
-def save_operadores(d): save_json(OPS_FILE, d)
-def load_avaliacoes(): return load_json(EVALS_FILE, [])
-def save_avaliacoes(d): save_json(EVALS_FILE, d)
+def _none_to_str(data):
+    if isinstance(data, list):
+        return [{k: ("" if v is None else v) for k, v in r.items()} for r in data]
+    return data
+
+def _str_to_none(data, none_fields):
+    result = []
+    for r in data:
+        row = dict(r)
+        for f in none_fields:
+            if row.get(f) == "":
+                row[f] = None
+        result.append(row)
+    return result
+
+def _fix_numbers(data, float_fields):
+    result = []
+    for r in data:
+        row = dict(r)
+        for f in float_fields:
+            v = row.get(f)
+            if v not in (None, ""):
+                try: row[f] = float(v)
+                except: pass
+        result.append(row)
+    return result
+
+def load_operadores():
+    if _use_gsheets():
+        data = _gs_read("operadores")
+        return _str_to_none(data, ["op_id"]) if data else []
+    return _json_read(OPS_FILE, [])
+
+def save_operadores(d):
+    d = _none_to_str(d)
+    if _use_gsheets():
+        _gs_write("operadores", d)
+    _json_write(OPS_FILE, d)
+
+def load_avaliacoes():
+    if _use_gsheets():
+        data = _gs_read("avaliacoes")
+        return _fix_numbers(data, ["mp","nota_int"]) if data else []
+    return _json_read(EVALS_FILE, [])
+
+def save_avaliacoes(d):
+    d = _none_to_str(d)
+    if _use_gsheets():
+        _gs_write("avaliacoes", d)
+    _json_write(EVALS_FILE, d)
+
 def load_faixas():
-    default = [
-        {"id":"f1","desc":"Abaixo da meta","min":0,  "max":79.9,"bonus":0},
-        {"id":"f2","desc":"Faixa Bronze",  "min":80, "max":84.9,"bonus":75},
-        {"id":"f3","desc":"Faixa Prata",   "min":85, "max":89.9,"bonus":150},
-        {"id":"f4","desc":"Faixa Ouro",    "min":90, "max":94.9,"bonus":250},
-        {"id":"f5","desc":"Faixa Diamante","min":95, "max":100, "bonus":400},
-    ]
-    return load_json(FAIXAS_FILE, default)
-def save_faixas(d): save_json(FAIXAS_FILE, d)
+    if _use_gsheets():
+        data = _gs_read("faixas")
+        return _fix_numbers(data, ["min","max","bonus"]) if data else DEFAULT_FAIXAS
+    return _json_read(FAIXAS_FILE, DEFAULT_FAIXAS)
+
+def save_faixas(d):
+    if _use_gsheets():
+        _gs_write("faixas", d)
+    _json_write(FAIXAS_FILE, d)
+
 def load_usuarios():
-    default = [
-        {"login":"comandante","senha":"leal2024","nivel":"comandante","nome":"Gerente de Qualidade","op_id":None},
-        {"login":"copiloto",  "senha":"leal2024","nivel":"copiloto",  "nome":"Coordenadora",        "op_id":None},
-        {"login":"observador","senha":"leal2024","nivel":"observador","nome":"Gerente",              "op_id":None},
-    ]
-    return load_json(USERS_FILE, default)
-def save_usuarios(d): save_json(USERS_FILE, d)
+    if _use_gsheets():
+        data = _gs_read("usuarios")
+        return _str_to_none(data, ["op_id"]) if data else DEFAULT_USUARIOS
+    return _json_read(USERS_FILE, DEFAULT_USUARIOS)
+
+def save_usuarios(d):
+    d = _none_to_str(d)
+    if _use_gsheets():
+        _gs_write("usuarios", d)
+    _json_write(USERS_FILE, d)
+
+def storage_status():
+    if _use_gsheets():
+        sid = st.secrets["gsheets"]["spreadsheet_id"]
+        return f"\u2705 Google Sheets conectado \u00b7 ID: `{sid[:24]}...`"
+    return "\U0001f4be Armazenamento local (JSON) \u00b7 Configure o Google Sheets para sincronizar"
+
 
 # ─── Helpers de negócio ───────────────────────────────────────────────────────
 def avg_of(values):
@@ -628,6 +715,11 @@ def eval_int(e):
     except: return None
 
 def eval_final(e, pesos):
+    """
+    Nota MP: 0-100 (direto)
+    Nota interna: 0-100 (direto)
+    Nota final = média ponderada das duas, resultado 0-100
+    """
     mp = e.get("mp")
     iv = eval_int(e)
     mp_f = None
@@ -737,7 +829,7 @@ def tela_login():
     """, unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# SIDEBAR  ← CORRIGIDO: removido st.markdown duplicado do loop de navegação
+# SIDEBAR
 # ═══════════════════════════════════════════════════════════════════════════════
 def render_sidebar(user):
     with st.sidebar:
@@ -775,11 +867,8 @@ def render_sidebar(user):
             if "page" not in st.session_state:
                 st.session_state.page = "Dashboard"
 
-            st.markdown(
-                "<p style='font-size:10px;color:#333333;letter-spacing:0.1em;"
-                "font-weight:600;padding:0 0.8rem;margin-bottom:4px;'>NAVEGAÇÃO</p>",
-                unsafe_allow_html=True
-            )
+            st.markdown("<div style='padding:0 0.5rem;'>", unsafe_allow_html=True)
+            st.markdown("<p style='font-size:10px;color:#333333;letter-spacing:0.1em;font-weight:600;padding:0 0.3rem;margin-bottom:6px;'>NAVEGAÇÃO</p>", unsafe_allow_html=True)
 
             pages = [("🏠","Dashboard"),("👥","Operadores"),("📋","Avaliações"),("🏆","Metas"),("📈","Evolução")]
             if nivel == "comandante":
@@ -787,21 +876,34 @@ def render_sidebar(user):
 
             for icon, pg in pages:
                 is_active = st.session_state.page == pg
-                # Aplica classe CSS de ativo via container div
-                css_class = "nav-active" if is_active else "nav-item"
-                st.markdown(f"<div class='{css_class}'>", unsafe_allow_html=True)
-                if st.button(f"{icon}  {pg}", key=f"nav_{pg}", use_container_width=True):
+                style = "background:#161616;border-color:#2A2A2A;color:#C9A84C;" if is_active else ""
+                st.markdown(f"""
+                <div style='margin-bottom:2px;'>
+                    <div onclick="window.parent.postMessage({{type:'streamlit:setComponentValue',value:'{pg}'}},)*"
+                         style='display:flex;align-items:center;gap:10px;padding:10px 12px;
+                                border-radius:8px;cursor:pointer;border:1px solid transparent;
+                                {style}transition:all 0.15s;font-size:13px;font-weight:{"600" if is_active else "400"};
+                                color:{"#C9A84C" if is_active else "#888888"};'>
+                        <span style='font-size:15px;'>{icon}</span>
+                        <span>{pg}</span>
+                        {"<div style='margin-left:auto;width:5px;height:5px;border-radius:50%;background:#C9A84C;'></div>" if is_active else ""}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button(f"{icon} {pg}", key=f"nav_{pg}", use_container_width=True):
                     st.session_state.page = pg
                     st.rerun()
-                st.markdown("</div>", unsafe_allow_html=True)
+
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("---")
-        st.markdown("<div class='btn-sair'>", unsafe_allow_html=True)
-        if st.button("↩  Sair", use_container_width=True, key="btn_sair"):
+        # Status do armazenamento
+        st.markdown(f"<p style='font-size:10px;color:#333333;padding:0 0.3rem;line-height:1.5;'>{storage_status()}</p>", unsafe_allow_html=True)
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        if st.button("↩ Sair", use_container_width=True):
             st.session_state.logged_in = False
             st.session_state.user = None
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # DASHBOARD
@@ -1272,6 +1374,7 @@ def pagina_evolucao(user, readonly=False):
         if met=="Nota interna":   return eval_int(e)
 
     st.markdown("---")
+    # Gráfico por mês (fechamento)
     data_m = {}
     for mes in meses:
         m_evs = [e for e in evs if e.get("mes")==mes]
@@ -1286,6 +1389,7 @@ def pagina_evolucao(user, readonly=False):
         st.markdown(f"### 🌌 {opcao} — {metrica} por mês")
         st.line_chart(df_m.set_index("Mês"), color="#4CC9F0")
 
+    # Comparativo entre operadores
     st.markdown("---")
     mes_rec = meses[-1] if meses else None
     if mes_rec:
@@ -1320,6 +1424,7 @@ def pagina_configuracoes(user):
     st.markdown("### 👤 Usuários do sistema")
     usuarios = load_usuarios()
 
+    # Editar nome e senha de qualquer usuário de gestão
     st.markdown("**Editar usuários de gestão**")
     for i, u in enumerate(usuarios):
         if u.get("nivel") == "tripulacao": continue
@@ -1329,6 +1434,7 @@ def pagina_configuracoes(user):
                 novo_login = st.text_input("Login", value=u.get("login",""), key=f"nl_{i}")
                 nova_senha = st.text_input("Nova senha (deixe vazio para manter)", type="password", key=f"ns_{i}")
                 if st.form_submit_button("💾 Salvar alterações"):
+                    # Verificar login duplicado
                     outros_logins = [x["login"] for x in usuarios if x["login"]!=u["login"]]
                     if novo_login.strip() in outros_logins:
                         st.error("Este login já está em uso.")
@@ -1343,6 +1449,7 @@ def pagina_configuracoes(user):
                                         break
                                     uu["senha"] = nova_senha.strip()
                         save_usuarios(usuarios)
+                        # Atualizar sessão se for o próprio usuário
                         if u["login"]==user["login"] or novo_login.strip()==user["login"]:
                             updated = next((x for x in load_usuarios() if x["login"]==novo_login.strip()),None)
                             if updated:
@@ -1527,6 +1634,7 @@ else:
     user  = st.session_state.user
     nivel = user["nivel"]
 
+    # Injetar estrelas animadas para usuários logados
     st.markdown(STARS_JS, unsafe_allow_html=True)
 
     if nivel == "tripulacao":
