@@ -734,13 +734,41 @@ def storage_status():
     return "💾 Armazenamento local (JSON)"
 
 def _gs_test_write():
-    """Teste rápido de escrita — confirma que as credenciais têm permissão de editar."""
+    """Testa cada etapa da conexão e retorna diagnóstico detalhado."""
+    import traceback
+    steps = []
     try:
-        sh = _spreadsheet()
+        # Etapa 1: autenticar
+        steps.append("1/4 Autenticando credenciais...")
+        creds = Credentials.from_service_account_info(
+            dict(st.secrets["gcp_service_account"]), scopes=SCOPES
+        )
+        gc = gspread.authorize(creds)
+        steps.append("✓ Credenciais OK")
+
+        # Etapa 2: abrir planilha
+        steps.append("2/4 Abrindo planilha...")
+        sid = st.secrets["gsheets"]["spreadsheet_id"]
+        sh = gc.open_by_key(sid)
+        steps.append(f"✓ Planilha aberta: {sh.title}")
+
+        # Etapa 3: listar abas
+        steps.append("3/4 Listando abas...")
         titles = [ws.title for ws in sh.worksheets()]
-        return True, f"{len(titles)} abas acessíveis"
+        steps.append(f"✓ Abas encontradas: {titles}")
+
+        # Etapa 4: teste de escrita real
+        steps.append("4/4 Testando escrita...")
+        ws_test = sh.worksheet(titles[0]) if titles else sh.add_worksheet("test", 5, 5)
+        # Apenas lê para não alterar dados
+        ws_test.cell(1, 1)
+        steps.append("✓ Leitura OK — conexão plena")
+
+        return True, " | ".join(steps)
     except Exception as e:
-        return False, str(e)
+        tb = traceback.format_exc()
+        steps.append(f"ERRO: {e}")
+        return False, "\n".join(steps) + f"\n\nDetalhes técnicos:\n{tb}"
 
 
 # ─── Helpers de negócio ───────────────────────────────────────────────────────
@@ -1456,11 +1484,16 @@ def pagina_configuracoes(user):
             st.markdown(f"<p style='font-size:13px;color:#888;'>Conta de serviço: <code>{st.secrets['gcp_service_account'].get('client_email','?')}</code></p>", unsafe_allow_html=True)
         with c2:
             if st.button("🧪 Testar conexão agora", use_container_width=True):
-                ok, msg = _gs_test_write()
+                with st.spinner("Testando..."):
+                    ok, msg = _gs_test_write()
                 if ok:
-                    st.success(f"✅ Conectado — {msg}")
+                    st.success("✅ Conexão funcionando!")
+                    with st.expander("Ver detalhes"):
+                        for linha in msg.split(" | "):
+                            st.markdown(f"- {linha}")
                 else:
-                    st.error(f"❌ Falhou: {msg}")
+                    st.error("❌ Falhou — veja o diagnóstico abaixo")
+                    st.code(msg, language="text")
         st.markdown("---")
 
     st.markdown("### 👤 Usuários do sistema")
