@@ -565,6 +565,14 @@ SCOPES = [
     "https://www.googleapis.com/auth/drive",
 ]
 
+# Cabeçalhos padrão de cada aba — garante que a planilha seja inicializada correta
+ABA_HEADERS = {
+    "operadores": ["id","nome","cargo","adm","status","notas","op_id"],
+    "avaliacoes":  ["id","op_id","mes","ciclo","mp","nota_int","feed","pos","acao","criado"],
+    "faixas":      ["id","desc","min","max","bonus"],
+    "usuarios":    ["login","senha","nivel","nome","op_id"],
+}
+
 def _use_gsheets():
     if not GSHEETS_AVAILABLE:
         return False
@@ -573,43 +581,62 @@ def _use_gsheets():
     except Exception:
         return False
 
-@st.cache_resource(show_spinner=False)
-def _get_gsheet():
+def _connect():
+    """Cria conexão autenticada — sem cache para evitar erros travados."""
     creds = Credentials.from_service_account_info(
         dict(st.secrets["gcp_service_account"]), scopes=SCOPES
     )
     gc = gspread.authorize(creds)
     sid = st.secrets["gsheets"]["spreadsheet_id"]
-    sh = gc.open_by_key(sid)
-    existing = [ws.title for ws in sh.worksheets()]
-    for aba in ABAS:
-        if aba not in existing:
-            sh.add_worksheet(title=aba, rows=500, cols=30)
-    return sh
+    return gc.open_by_key(sid)
 
-def _aba(nome):
-    return _get_gsheet().worksheet(nome)
+def _get_or_create_aba(sh, nome):
+    """Retorna a worksheet, criando com cabeçalho se não existir."""
+    titles = [ws.title for ws in sh.worksheets()]
+    if nome not in titles:
+        ws = sh.add_worksheet(title=nome, rows=1000, cols=30)
+        # Escreve cabeçalho
+        ws.append_row(ABA_HEADERS[nome])
+        return ws
+    ws = sh.worksheet(nome)
+    # Se aba existe mas está vazia, escreve cabeçalho
+    vals = ws.get_all_values()
+    if not vals:
+        ws.append_row(ABA_HEADERS[nome])
+    return ws
 
 def _gs_read(nome):
+    """Lê uma aba com segurança — retorna lista de dicts ou []."""
     try:
-        ws = _aba(nome)
-        rows = ws.get_all_records(default_blank="")
-        return rows
+        sh = _connect()
+        ws = _get_or_create_aba(sh, nome)
+        rows = ws.get_all_values()
+        if len(rows) < 2:
+            return []  # Só tem cabeçalho ou está vazia
+        headers = rows[0]
+        result = []
+        for row in rows[1:]:
+            # Garantir que a linha tenha colunas suficientes
+            padded = row + [""] * (len(headers) - len(row))
+            result.append(dict(zip(headers, padded)))
+        return result
     except Exception as e:
-        st.warning(f"Erro ao ler '{nome}' do Google Sheets: {e}")
-        return []
+        st.warning(f"Erro ao ler '{nome}': {e}")
+        return None  # None = falhou (diferente de [] = vazio)
 
 def _gs_write(nome, data):
+    """Sobrescreve uma aba inteira com lista de dicts."""
     try:
-        ws = _aba(nome)
+        sh = _connect()
+        ws = _get_or_create_aba(sh, nome)
         ws.clear()
-        if not data:
-            return
-        headers = list(data[0].keys())
-        rows = [headers] + [[str(r.get(h, "")) for h in headers] for r in data]
+        headers = ABA_HEADERS.get(nome, list(data[0].keys()) if data else [])
+        rows = [headers]
+        for r in data:
+            rows.append([str(r.get(h, "")) for h in headers])
         ws.update(rows, "A1")
     except Exception as e:
-        st.warning(f"Erro ao salvar '{nome}' no Google Sheets: {e}")
+        st.warning(f"Erro ao salvar '{nome}': {e}")
 
 def _json_read(path, default):
     if path.exists():
@@ -651,49 +678,57 @@ def _fix_numbers(data, float_fields):
 def load_operadores():
     if _use_gsheets():
         data = _gs_read("operadores")
-        return _str_to_none(data, ["op_id"]) if data else []
+        if data is None:  # erro de conexão — usa JSON local
+            return _json_read(OPS_FILE, [])
+        return _str_to_none(data, ["op_id"])
     return _json_read(OPS_FILE, [])
 
 def save_operadores(d):
     d = _none_to_str(d)
+    _json_write(OPS_FILE, d)  # sempre salva local também
     if _use_gsheets():
         _gs_write("operadores", d)
-    _json_write(OPS_FILE, d)
 
 def load_avaliacoes():
     if _use_gsheets():
         data = _gs_read("avaliacoes")
-        return _fix_numbers(data, ["mp","nota_int"]) if data else []
+        if data is None:
+            return _json_read(EVALS_FILE, [])
+        return _fix_numbers(data, ["mp","nota_int"])
     return _json_read(EVALS_FILE, [])
 
 def save_avaliacoes(d):
     d = _none_to_str(d)
+    _json_write(EVALS_FILE, d)
     if _use_gsheets():
         _gs_write("avaliacoes", d)
-    _json_write(EVALS_FILE, d)
 
 def load_faixas():
     if _use_gsheets():
         data = _gs_read("faixas")
-        return _fix_numbers(data, ["min","max","bonus"]) if data else DEFAULT_FAIXAS
+        if data is None or len(data) == 0:
+            return DEFAULT_FAIXAS
+        return _fix_numbers(data, ["min","max","bonus"])
     return _json_read(FAIXAS_FILE, DEFAULT_FAIXAS)
 
 def save_faixas(d):
+    _json_write(FAIXAS_FILE, d)
     if _use_gsheets():
         _gs_write("faixas", d)
-    _json_write(FAIXAS_FILE, d)
 
 def load_usuarios():
     if _use_gsheets():
         data = _gs_read("usuarios")
-        return _str_to_none(data, ["op_id"]) if data else DEFAULT_USUARIOS
+        if data is None or len(data) == 0:
+            return DEFAULT_USUARIOS
+        return _str_to_none(data, ["op_id"])
     return _json_read(USERS_FILE, DEFAULT_USUARIOS)
 
 def save_usuarios(d):
     d = _none_to_str(d)
+    _json_write(USERS_FILE, d)
     if _use_gsheets():
         _gs_write("usuarios", d)
-    _json_write(USERS_FILE, d)
 
 def storage_status():
     if _use_gsheets():
