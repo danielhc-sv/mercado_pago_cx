@@ -581,46 +581,39 @@ def _use_gsheets():
     except Exception:
         return False
 
-def _connect():
-    """Conexão autenticada com cache de 5 min via session_state para evitar rate limit."""
-    import time
-    now = time.time()
-    cache = st.session_state.get("_gs_cache", {})
-    # Reutiliza conexão por até 5 minutos
-    if cache.get("sh") and now - cache.get("ts", 0) < 300:
-        return cache["sh"]
+def _gc():
+    """Abre cliente gspread autenticado — novo a cada chamada, sem cache de objeto."""
     creds = Credentials.from_service_account_info(
         dict(st.secrets["gcp_service_account"]), scopes=SCOPES
     )
-    gc = gspread.authorize(creds)
-    sid = st.secrets["gsheets"]["spreadsheet_id"]
-    sh = gc.open_by_key(sid)
-    st.session_state["_gs_cache"] = {"sh": sh, "ts": now}
-    return sh
+    return gspread.authorize(creds)
 
-def _get_or_create_aba(sh, nome):
-    """Retorna a worksheet, criando com cabeçalho se não existir."""
+def _spreadsheet():
+    """Abre a planilha pelo ID configurado em secrets."""
+    sid = st.secrets["gsheets"]["spreadsheet_id"]
+    return _gc().open_by_key(sid)
+
+def _get_or_create_ws(nome):
+    """Abre ou cria a worksheet garantindo cabeçalho."""
+    sh = _spreadsheet()
     titles = [ws.title for ws in sh.worksheets()]
     if nome not in titles:
         ws = sh.add_worksheet(title=nome, rows=1000, cols=30)
-        # Escreve cabeçalho
         ws.append_row(ABA_HEADERS[nome])
         return ws
     ws = sh.worksheet(nome)
-    # Se aba existe mas está vazia, escreve cabeçalho
     vals = ws.get_all_values()
     if not vals:
         ws.append_row(ABA_HEADERS[nome])
     return ws
 
 def _gs_read(nome):
-    """Lê uma aba com segurança — retorna lista de dicts, [] se vazia, None se erro."""
+    """Lê aba e retorna lista de dicts. Retorna None em caso de erro."""
     try:
-        sh = _connect()
-        ws = _get_or_create_aba(sh, nome)
+        ws = _get_or_create_ws(nome)
         rows = ws.get_all_values()
         if len(rows) < 2:
-            return []  # só cabeçalho ou vazia
+            return []
         headers = rows[0]
         result = []
         for row in rows[1:]:
@@ -628,29 +621,19 @@ def _gs_read(nome):
             result.append(dict(zip(headers, padded)))
         return result
     except Exception as e:
-        # Armazena erro para debug mas não polui a tela
-        if "gs_errors" not in st.session_state:
-            st.session_state.gs_errors = []
-        st.session_state.gs_errors.append(f"read:{nome}:{e}")
+        st.session_state.setdefault("gs_last_error", str(e))
         return None
 
 def _gs_write(nome, data):
-    """Sobrescreve uma aba inteira com lista de dicts."""
+    """Sobrescreve aba inteira. Exibe erro visível se falhar."""
     try:
-        sh = _connect()
-        ws = _get_or_create_aba(sh, nome)
+        ws = _get_or_create_ws(nome)
         ws.clear()
         headers = ABA_HEADERS.get(nome, list(data[0].keys()) if data else [])
-        rows = [headers]
-        for r in data:
-            rows.append([str(r.get(h, "")) for h in headers])
+        rows = [headers] + [[str(r.get(h, "")) for h in headers] for r in data]
         ws.update(rows, "A1")
-        # Limpa erros antigos se escrita OK
-        st.session_state.pop("gs_errors", None)
     except Exception as e:
-        if "gs_errors" not in st.session_state:
-            st.session_state.gs_errors = []
-        st.session_state.gs_errors.append(f"write:{nome}:{e}")
+        st.error(f"❌ Falha ao sincronizar '{nome}' com Google Sheets: {e}")
 
 def _json_read(path, default):
     if path.exists():
@@ -747,8 +730,17 @@ def save_usuarios(d):
 def storage_status():
     if _use_gsheets():
         sid = st.secrets["gsheets"]["spreadsheet_id"]
-        return f"\u2705 Google Sheets conectado \u00b7 ID: `{sid[:24]}...`"
-    return "\U0001f4be Armazenamento local (JSON) \u00b7 Configure o Google Sheets para sincronizar"
+        return f"✅ Google Sheets ativo"
+    return "💾 Armazenamento local (JSON)"
+
+def _gs_test_write():
+    """Teste rápido de escrita — confirma que as credenciais têm permissão de editar."""
+    try:
+        sh = _spreadsheet()
+        titles = [ws.title for ws in sh.worksheets()]
+        return True, f"{len(titles)} abas acessíveis"
+    except Exception as e:
+        return False, str(e)
 
 
 # ─── Helpers de negócio ───────────────────────────────────────────────────────
@@ -1454,6 +1446,22 @@ def pagina_configuracoes(user):
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+    # ── Diagnóstico Google Sheets ──────────────────────────────────────────
+    if _use_gsheets():
+        st.markdown("### 🔌 Diagnóstico da conexão")
+        c1, c2 = st.columns([2, 1])
+        with c1:
+            st.markdown(f"<p style='font-size:13px;color:#888;'>ID da planilha: <code>{st.secrets['gsheets']['spreadsheet_id']}</code></p>", unsafe_allow_html=True)
+            st.markdown(f"<p style='font-size:13px;color:#888;'>Conta de serviço: <code>{st.secrets['gcp_service_account'].get('client_email','?')}</code></p>", unsafe_allow_html=True)
+        with c2:
+            if st.button("🧪 Testar conexão agora", use_container_width=True):
+                ok, msg = _gs_test_write()
+                if ok:
+                    st.success(f"✅ Conectado — {msg}")
+                else:
+                    st.error(f"❌ Falhou: {msg}")
+        st.markdown("---")
 
     st.markdown("### 👤 Usuários do sistema")
     usuarios = load_usuarios()
